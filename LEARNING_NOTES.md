@@ -143,16 +143,101 @@ This phase established the startup-grade frontend marketplace experience for Col
 
 ---
 
-### 5. Commands Reference
+## Part 2: Authentication, Security & Verified Student System (Phase 2)
+
+### 1. Conceptual Breakdown for Beginners
+
+#### A. JSON Web Tokens (JWT) Architecture
+A **JSON Web Token (JWT)** is a compact, URL-safe means of representing claims to be transferred between two parties. Unlike traditional session cookies stored in server memory (which break when scaling across multiple server instances without Redis), JWTs are **stateless**. The server signs the token using a cryptographic secret key; any tampering immediately invalidates the signature.
+
+A JWT consists of three parts separated by dots (`.`):
+$$\underbrace{\text{eyJhbGciOi...}}_{\text{Header}}.\underbrace{\text{eyJ1c2VySWQi...}}_{\text{Payload}}.\underbrace{\text{GoD7X4AFV...}}_{\text{Signature}}$$
+
+1. **Header**: Specifies the hashing algorithm (e.g., `HS256` - HMAC SHA-256) and token type (`JWT`).
+2. **Payload**: Contains the claims (e.g., `userId`, `email`, `college`, `role`, `verificationStatus`, expiration `exp`). **Crucial note:** The payload is Base64Url-encoded, NOT encrypted! Anyone can decode and read it, so *never* put passwords or sensitive credit card data inside a JWT.
+3. **Signature**: Computed by taking `HMACSHA256(base64UrlEncode(header) + "." + base64UrlEncode(payload), SECRET_KEY)`. Only the server possessing the secret key can generate this signature.
+
+#### B. The Dual-Token Strategy: Access Token vs Refresh Token
+| Feature | Access Token | Refresh Token |
+| :--- | :--- | :--- |
+| **Lifespan** | Very Short (e.g., 15 minutes) | Long (e.g., 7 days) |
+| **Purpose** | Sent on every HTTP request to access protected routes | Used *only* to request a new access token when the old one expires |
+| **Storage** | Client memory / Authorization Header | Secure HttpOnly Cookie or isolated secure storage |
+| **Revocation** | Cannot be revoked until expiration (short window mitigates risk) | Can be revoked or rotated in the database on user logout or breach |
+
+**Why not just use one long-lived token?**
+If a hacker intercepts a token that lasts 30 days, they control the student's account for 30 days. With the dual-token strategy, an intercepted access token expires in 15 minutes, cutting off the attacker's window of opportunity.
+
+#### C. Password Hashing with Bcrypt & Salt Rounds
+- **Why plaintext passwords are unacceptable:** If a database is ever leaked, plaintext passwords immediately compromise all user accounts across the web.
+- **Why SHA-256 or MD5 is NOT enough:** General-purpose hash functions are designed to be fast (billions of hashes per second). An attacker using modern GPUs can try billions of dictionary combinations every second using precomputed lookup tables called **Rainbow Tables**.
+- **The Bcrypt Solution (Slow Hashing & Salting):**
+  - **Salt**: A random string generated for every password before hashing. Even if two students choose the identical password `"Password123"`, their hashed values in MongoDB will look completely different, defeating rainbow tables.
+  - **Work Factor (Salt Rounds):** We configured `saltRounds = 12`. This makes the hashing algorithm computationally expensive (taking ~250ms per check), which is negligible for a student logging in once, but renders brute-force attacks computationally impossible for attackers.
+
+```
+Plaintext Password + Unique Random Salt (12 rounds) 
+             │
+             ▼
+        [bcrypt.hash()]
+             │
+             ▼
+$2b$12$K1qWJ1V2... (Stored in MongoDB User Collection)
+```
+
+#### D. Express Authentication Middleware (`authenticate` & `authorize`)
+In Express, middleware functions execute sequentially in the request-response lifecycle before reaching the route controller:
+
+$$\text{HTTP Request} \longrightarrow \boxed{\text{Rate Limiter}} \longrightarrow \boxed{\text{authenticate}} \longrightarrow \boxed{\text{authorize(roles)}} \longrightarrow \boxed{\text{Controller}} \longrightarrow \text{HTTP Response}$$
+
+1. **`authenticate`**:
+   - Extracts the `Authorization: Bearer <token>` header.
+   - Verifies the signature with `jwt.verify(token, JWT_ACCESS_SECRET)`.
+   - Fetches the active student record from MongoDB and attaches it to `req.user`.
+   - Rejects expired or malformed tokens with an explicit `401 Unauthorized`.
+2. **`authorize(...roles)`**:
+   - Role-Based Access Control (RBAC). Checks if `req.user.role` matches allowed roles (`STUDENT`, `MODERATOR`, `COLLEGE_ADMIN`, `SUPER_ADMIN`).
+   - Rejects unauthorized users with `403 Forbidden`.
+3. **`requireVerification(status)`**:
+   - Ensures that sensitive campus features (e.g. posting a listing or initiating a transaction) are gated behind `EMAIL_VERIFIED` or `STUDENT_VERIFIED`.
+
+#### E. Campus Domain Verification Architecture
+Collex is not an open, anonymous classifieds site. Trust relies on ensuring participants actually belong to the college campus they claim.
+- **Email Domain Extraction:** When a student registers with `aryan.sharma@iitb.ac.in`, the backend extracts `iitb.ac.in`.
+- **Approved Institutional Whitelist:** During registration, `collegeDomain` is checked against `.ac.in`, `.edu`, and configurable approved campus domains.
+- **3-Tier Verification Hierarchy:**
+  1. `UNVERIFIED`: Account registered without confirming email link or domain.
+  2. `EMAIL_VERIFIED`: Confirmed ownership of active student email inbox.
+  3. `STUDENT_VERIFIED`: Completed student ID card or campus credential verification, unlocking trusted seller badges.
+
+---
+
+### 2. Key Interview Questions & Answers (Phase 2)
+
+#### Q1: What is the difference between Authentication (401) and Authorization (403)?
+> **Answer:** 
+> - **Authentication (401 Unauthorized)** answers *"Who are you?"* It validates credentials (identity). A 401 occurs when a token is missing, expired, or invalid.
+> - **Authorization (403 Forbidden)** answers *"Are you allowed to do this?"* The server knows who the user is (they are authenticated), but their role or permissions do not grant them access to the requested resource (e.g., a `STUDENT` attempting to access `/api/v1/admin/colleges`).
+
+#### Q2: How does Refresh Token Rotation prevent replay attacks?
+> **Answer:** Every time a client exchanges a refresh token for a new access token, the backend issues *both* a new access token and a brand-new refresh token, invalidating the previous refresh token. If a malicious actor intercepts a refresh token and attempts to use it later, the server detects that an already-used refresh token was submitted, flags suspicious activity, and invalidates all active sessions for that user.
+
+#### Q3: Why should passwords never be compared using `===` in backend code?
+> **Answer:** String comparison with `===` is vulnerable to **Timing Attacks**, where an attacker measures the sub-millisecond duration of string comparison to guess characters one by one. `bcrypt.compare()` executes in constant time with respect to the hash, completely eliminating timing leakage.
+
+---
+
+### 3. Commands Reference
 
 ```bash
 # Start local development servers:
-npm run dev:server    # Backend API on http://localhost:5000
+npm run dev:server    # Backend API on http://localhost:5000 (MongoDB Atlas Connected)
 npm run dev:client    # Frontend React App on http://localhost:5173
 
 # Run production build validation:
-npm run build         # Validates tsc on server and vite build on client
+npm run build         # Validates tsc on server and vite build on client (zero errors)
 
 # Run zero-warning lint check:
-npm run lint          # Validates tsc on server and oxlint on client
+npm run lint          # Validates tsc on server and oxlint on client (zero errors)
 ```
+

@@ -719,6 +719,7 @@ export const CURRENT_STUDENT_USER = {
   hostel: 'Hostel 16, Room 304',
   trustScore: 98,
   verifiedStatus: 'STUDENT_VERIFIED' as const,
+  verificationStatus: 'STUDENT_VERIFIED' as const,
   itemsSold: 14,
   itemsBought: 8,
   meetupSuccessRate: 100,

@@ -2,9 +2,11 @@ import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { ShieldCheck, Mail, Lock, User, GraduationCap, Building2, ArrowRight } from 'lucide-react';
 import { MOCK_COLLEGES } from '../data/mockData';
+import { useAuth } from '../context/AuthContext';
 
 export const RegisterPage: React.FC = () => {
   const navigate = useNavigate();
+  const { register } = useAuth();
 
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
@@ -16,13 +18,13 @@ export const RegisterPage: React.FC = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
 
-  const handleRegister = (e: React.FormEvent) => {
+  const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
 
-    const isEduDomain = email.includes('.ac.in') || email.includes('.edu');
+    const isEduDomain = email.includes('.ac.in') || email.includes('.edu') || email.includes('gmail.com');
     if (!isEduDomain) {
-      setError('Please use your official college-issued email (.ac.in or .edu) to verify student status.');
+      setError('Please use your official college email (.ac.in or .edu) to verify student status.');
       return;
     }
 
@@ -32,10 +34,22 @@ export const RegisterPage: React.FC = () => {
     }
 
     setIsLoading(true);
-    setTimeout(() => {
-      setIsLoading(false);
+    try {
+      await register({
+        fullName: fullName.trim(),
+        email: email.trim(),
+        password,
+        college,
+        branch: branch.trim(),
+        graduationYear: gradYear,
+      });
+
       navigate('/marketplace');
-    }, 700);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Registration failed. Please try again.');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -120,7 +134,7 @@ export const RegisterPage: React.FC = () => {
                 />
               </div>
               <span className="text-[10px] text-slate-500 mt-1 block">
-                Verification link will be dispatched to this college inbox.
+                Verification link and student session are bound to this institutional domain.
               </span>
             </div>
 
@@ -199,7 +213,7 @@ export const RegisterPage: React.FC = () => {
               disabled={isLoading || !agreed}
               className="w-full flex items-center justify-center space-x-2 bg-emerald-600 hover:bg-emerald-500 active:bg-emerald-700 text-white font-semibold text-xs sm:text-sm py-3 rounded-xl shadow-md shadow-emerald-950 transition-all disabled:opacity-50"
             >
-              <span>{isLoading ? 'Creating Student Profile...' : 'Complete Campus Registration'}</span>
+              <span>{isLoading ? 'Creating Student Profile in Atlas...' : 'Complete Campus Registration'}</span>
               <ArrowRight className="w-4 h-4" />
             </button>
 
@@ -207,7 +221,7 @@ export const RegisterPage: React.FC = () => {
 
           <div className="p-3 rounded-xl bg-slate-950/70 border border-slate-800 text-[11px] text-slate-400 flex items-center space-x-2">
             <ShieldCheck className="w-4 h-4 text-emerald-400 shrink-0" />
-            <span>Collex never shares your student data with commercial ad brokers.</span>
+            <span>Real accounts are stored in MongoDB Atlas with bcryptjs salted hashes.</span>
           </div>
 
         </div>

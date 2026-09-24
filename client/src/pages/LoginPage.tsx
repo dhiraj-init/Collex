@@ -1,34 +1,40 @@
 import React, { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { ShieldCheck, Mail, Lock, Eye, EyeOff, ArrowRight } from 'lucide-react';
-import { useMarketplace } from '../context/MarketplaceContext';
+import { useAuth } from '../context/AuthContext';
 
 export const LoginPage: React.FC = () => {
   const navigate = useNavigate();
-  const { user } = useMarketplace();
+  const location = useLocation();
+  const { login } = useAuth();
 
-  const [email, setEmail] = useState('aryan.sharma@iitb.ac.in');
-  const [password, setPassword] = useState('••••••••••••');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
 
-  const handleLogin = (e: React.FormEvent) => {
+  const from = (location.state as { from?: { pathname: string } })?.from?.pathname || '/marketplace';
+
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMessage('');
 
-    // Student domain check
-    const isCollegeDomain = email.includes('.edu') || email.includes('.ac.in');
+    const isCollegeDomain = email.includes('.edu') || email.includes('.ac.in') || email.includes('gmail.com');
     if (!isCollegeDomain) {
-      setErrorMessage('Please use your official college email address (@iitb.ac.in, @dtu.ac.in, etc.)');
+      setErrorMessage('Please use your approved college email address (@iitb.ac.in, @dtu.ac.in, etc.)');
       return;
     }
 
     setIsLoading(true);
-    setTimeout(() => {
+    try {
+      await login({ email: email.trim(), password });
+      navigate(from, { replace: true });
+    } catch (err) {
+      setErrorMessage(err instanceof Error ? err.message : 'Invalid credentials. Please verify your email and password.');
+    } finally {
       setIsLoading(false);
-      navigate('/marketplace');
-    }, 600);
+    }
   };
 
   return (
@@ -67,14 +73,14 @@ export const LoginPage: React.FC = () => {
                 <input
                   type="email"
                   required
-                  placeholder="your.name@college.ac.in"
+                  placeholder="your.roll@college.ac.in"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   className="w-full bg-slate-950 border border-slate-700 focus:border-emerald-500 rounded-xl pl-9 pr-4 py-2.5 text-xs text-white outline-none"
                 />
               </div>
               <span className="text-[10px] text-slate-500 mt-1 block">
-                Must be an active institutional domain (.ac.in or .edu)
+                Must be an approved domain (.ac.in, .edu, or dev allowed)
               </span>
             </div>
 
@@ -93,6 +99,7 @@ export const LoginPage: React.FC = () => {
                 <input
                   type={showPassword ? 'text' : 'password'}
                   required
+                  placeholder="••••••••••••"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   className="w-full bg-slate-950 border border-slate-700 focus:border-emerald-500 rounded-xl pl-9 pr-10 py-2.5 text-xs text-white outline-none"
@@ -119,10 +126,15 @@ export const LoginPage: React.FC = () => {
 
           </form>
 
-          {/* Quick Demo Reassurance */}
-          <div className="p-3 rounded-xl bg-slate-950/70 border border-slate-800 text-[11px] text-slate-400 flex items-center space-x-2.5">
-            <ShieldCheck className="w-4 h-4 text-emerald-400 shrink-0" />
-            <span>Currently simulating verified student: <strong>{user.fullName}</strong></span>
+          {/* Quick Demo Credentials */}
+          <div className="p-3 rounded-xl bg-slate-950/70 border border-slate-800 text-[11px] text-slate-400 space-y-1">
+            <div className="flex items-center space-x-1.5 text-slate-300 font-medium">
+              <ShieldCheck className="w-4 h-4 text-emerald-400" />
+              <span>Real MongoDB Atlas Authentication Active</span>
+            </div>
+            <p className="text-slate-500 text-[10px]">
+              Don't have an account yet? Register below to create your student record in the database.
+            </p>
           </div>
 
         </div>

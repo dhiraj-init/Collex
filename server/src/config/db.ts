@@ -1,6 +1,16 @@
 import mongoose from 'mongoose';
+import dns from 'dns';
 import { config } from './env';
 import { logger } from '../utils/logger';
+
+// Ensure reliable SRV resolution on Windows/custom ISP networks
+if (config.mongoUri.startsWith('mongodb+srv')) {
+  try {
+    dns.setServers(['8.8.8.8', '1.1.1.1']);
+  } catch {
+    // Fallback to system default if restricted
+  }
+}
 
 export interface DbStatus {
   isConnected: boolean;
