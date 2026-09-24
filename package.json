@@ -1,0 +1,29 @@
+{
+  "name": "collex-monorepo",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Collex - Hyperlocal College Marketplace Monorepo",
+  "workspaces": [
+    "client",
+    "server"
+  ],
+  "scripts": {
+    "dev:server": "npm --prefix server run dev",
+    "dev:client": "npm --prefix client run dev",
+    "build:server": "npm --prefix server run build",
+    "build:client": "npm --prefix client run build",
+    "build": "npm run build:server && npm run build:client",
+    "lint:server": "npm --prefix server run lint",
+    "lint:client": "npm --prefix client run lint",
+    "lint": "npm run lint:server && npm run lint:client"
+  },
+  "keywords": [
+    "marketplace",
+    "campus",
+    "college",
+    "hyperlocal",
+    "collex"
+  ],
+  "author": "Collex Team",
+  "license": "UNLICENSED"
+}
