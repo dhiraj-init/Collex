@@ -3,10 +3,6 @@
   "version": "0.1.0",
   "private": true,
   "description": "Collex - Hyperlocal College Marketplace Monorepo",
-  "workspaces": [
-    "client",
-    "server"
-  ],
   "scripts": {
     "dev:server": "npm --prefix server run dev",
     "dev:client": "npm --prefix client run dev",
