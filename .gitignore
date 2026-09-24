@@ -44,3 +44,22 @@ coverage/
 # Temporary / Scratch files
 tmp/
 temp/
+
+# Python ML Service
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+.venv/
+venv/
+env/
+
+# ML model artifacts (trained model is committed to git for convenience in dev;
+# in production, models should be stored in object storage like GCS/S3)
+# Uncomment below to exclude model files from git:
+# ml-service/model/price_model.joblib
+
+# Generated training data (regenerate with: python data/generate_dataset.py)
+ml-service/data/campus_prices.csv

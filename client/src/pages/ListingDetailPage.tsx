@@ -19,6 +19,9 @@ import { useAuth } from '../context/AuthContext';
 import { listingService } from '../services/listingService';
 import { ListingCard } from '../components/marketplace/ListingCard';
 import type { MockListing } from '../data/mockData';
+import { mlService } from '../services/mlService';
+import type { ShieldResult } from '../services/mlService';
+import { CollexShieldBadge } from '../components/ml/CollexShieldBadge';
 
 export const ListingDetailPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -45,6 +48,10 @@ export const ListingDetailPage: React.FC = () => {
   const [liveListing, setLiveListing] = useState<MockListing | null>(null);
   const [apiRelated, setApiRelated] = useState<MockListing[]>([]);
   const [isLoadingLive, setIsLoadingLive] = useState(false);
+
+  // Collex Shield state
+  const [shieldResult, setShieldResult] = useState<ShieldResult | null>(null);
+  const [isShieldLoading, setIsShieldLoading] = useState(false);
 
   // Prioritize live backend data, fallback to context
   const contextListing = listings.find((item) => item.id === id);
@@ -77,6 +84,50 @@ export const ListingDetailPage: React.FC = () => {
       isMounted = false;
     };
   }, [id]);
+
+  // Run Collex Shield check once listing data is available (only for non-owners)
+  useEffect(() => {
+    if (!listing || !authUser) return;
+    // Don't run shield on your own listings
+    const ownerId = (listing.seller as unknown as Record<string, string>)._id ?? listing.seller.id;
+    if (ownerId === authUser.id) return;
+
+    const categoryMap: Record<string, string> = {
+      'Books': 'TEXTBOOKS',
+      'Electronics': 'ELECTRONICS',
+      'Cycles': 'BICYCLES',
+      'Calculators': 'ELECTRONICS',
+      'Lab Equipment': 'OTHER',
+      'Hostel Essentials': 'DORM_ESSENTIALS',
+      'Furniture': 'DORM_ESSENTIALS',
+      'Fashion': 'FASHION',
+      'Sports': 'OTHER',
+      'Free Stuff': 'OTHER',
+    };
+    const conditionMap: Record<string, string> = {
+      'Brand New': 'BRAND_NEW',
+      'Like New': 'LIKE_NEW',
+      'Good': 'GOOD',
+      'Fair': 'FAIR',
+    };
+
+    setIsShieldLoading(true);
+    mlService.checkShield({
+      listing_price: listing.price,
+      category: categoryMap[listing.category] ?? 'OTHER',
+      condition: conditionMap[listing.condition] ?? 'GOOD',
+      original_price: listing.originalPrice ?? undefined,
+      // seller trust data available from listing context
+      seller_completed_deals: listing.seller.reviewCount,
+    }).then((result) => {
+      setShieldResult(result);
+    }).catch(() => {
+      // Shield unavailable — fail silently, don't block the listing view
+    }).finally(() => {
+      setIsShieldLoading(false);
+    });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [listing?.id, authUser?.id]);
 
   if (!listing && !isLoadingLive) {
     return (
@@ -435,6 +486,19 @@ export const ListingDetailPage: React.FC = () => {
               {listing.description}
             </p>
           </div>
+
+          {/* Collex Shield — shown to buyers only */}
+          {!isOwner && (
+            <div className="space-y-2">
+              {isShieldLoading && (
+                <div className="flex items-center space-x-2 text-[11px] text-slate-500 px-1">
+                  <div className="w-3.5 h-3.5 border-2 border-slate-600 border-t-transparent rounded-full animate-spin" />
+                  <span>Running Collex Shield...</span>
+                </div>
+              )}
+              {shieldResult && <CollexShieldBadge result={shieldResult} />}
+            </div>
+          )}
 
         </div>
 

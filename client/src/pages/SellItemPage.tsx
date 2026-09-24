@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { 
   PlusCircle, 
@@ -12,6 +12,9 @@ import {
 } from 'lucide-react';
 import { useMarketplace } from '../context/MarketplaceContext';
 import type { MockListing } from '../data/mockData';
+import { mlService } from '../services/mlService';
+import type { PricePrediction } from '../services/mlService';
+import { PriceIntelligenceCard } from '../components/ml/PriceIntelligenceCard';
 
 const SAMPLE_PHOTO_PRESETS = [
   { label: 'Textbook', url: 'https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?auto=format&fit=crop&w=800&q=80' },
@@ -61,7 +64,71 @@ export const SellItemPage: React.FC = () => {
   const [showSuccessToast, setShowSuccessToast] = useState(false);
   const [activeTab, setActiveTab] = useState<'form' | 'preview'>('form');
 
+  // Price Intelligence state
+  const [pricePrediction, setPricePrediction] = useState<PricePrediction | null>(null);
+  const [isPredicting, setIsPredicting] = useState(false);
+  const [predictionError, setPredictionError] = useState<string | null>(null);
+  const priceDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   const activePhoto = customPhotoUrl.trim() || selectedPhoto;
+
+  // Trigger price prediction when pricing-relevant fields change
+  useEffect(() => {
+    if (!originalPrice || Number(originalPrice) <= 0 || dealType === 'Free') {
+      setPricePrediction(null);
+      return;
+    }
+    // Map frontend condition to backend enum
+    const conditionMap: Record<MockListing['condition'], string> = {
+      'Brand New': 'BRAND_NEW',
+      'Like New': 'LIKE_NEW',
+      'Good': 'GOOD',
+      'Fair': 'FAIR',
+    };
+    const categoryMap: Record<MockListing['category'], string> = {
+      'Books': 'TEXTBOOKS',
+      'Electronics': 'ELECTRONICS',
+      'Cycles': 'BICYCLES',
+      'Calculators': 'ELECTRONICS',
+      'Lab Equipment': 'OTHER',
+      'Hostel Essentials': 'DORM_ESSENTIALS',
+      'Furniture': 'DORM_ESSENTIALS',
+      'Fashion': 'FASHION',
+      'Sports': 'OTHER',
+      'Free Stuff': 'OTHER',
+    };
+    const listingTypeMap: Record<MockListing['dealType'], string> = {
+      'Sell': 'SELL',
+      'Rent': 'RENT',
+      'Exchange': 'EXCHANGE',
+      'Free': 'SELL',
+    };
+
+    if (priceDebounceRef.current) clearTimeout(priceDebounceRef.current);
+    priceDebounceRef.current = setTimeout(async () => {
+      setIsPredicting(true);
+      setPredictionError(null);
+      try {
+        const result = await mlService.predictPrice({
+          category: categoryMap[category],
+          condition: conditionMap[condition],
+          listing_type: listingTypeMap[dealType],
+          original_price: Number(originalPrice),
+          age_months: 12, // default; future: add explicit age field
+        });
+        setPricePrediction(result);
+      } catch {
+        setPredictionError('Price Intelligence is not available right now.');
+      } finally {
+        setIsPredicting(false);
+      }
+    }, 800);
+
+    return () => {
+      if (priceDebounceRef.current) clearTimeout(priceDebounceRef.current);
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [category, condition, dealType, originalPrice]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -293,6 +360,40 @@ export const SellItemPage: React.FC = () => {
                 </div>
               </div>
             </div>
+
+            {/* Price Intelligence Panel */}
+            {dealType !== 'Free' && (
+              <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 sm:p-6 space-y-3">
+                <h2 className="text-xs font-bold uppercase tracking-wider text-slate-300 flex items-center space-x-2">
+                  <Sparkles className="w-4 h-4 text-emerald-400" />
+                  <span>Collex Price Intelligence</span>
+                </h2>
+
+                {isPredicting && (
+                  <div className="flex items-center space-x-2 text-xs text-slate-400 py-3">
+                    <div className="w-4 h-4 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin" />
+                    <span>Estimating fair price...</span>
+                  </div>
+                )}
+
+                {!isPredicting && predictionError && (
+                  <p className="text-xs text-slate-500 italic">{predictionError}</p>
+                )}
+
+                {!isPredicting && !predictionError && !pricePrediction && (
+                  <p className="text-xs text-slate-500">
+                    Fill in the original price above to get an AI-powered price estimate.
+                  </p>
+                )}
+
+                {!isPredicting && pricePrediction && (
+                  <PriceIntelligenceCard
+                    prediction={pricePrediction}
+                    onApply={(p) => setPrice(p)}
+                  />
+                )}
+              </div>
+            )}
 
             {/* 3. Photo & Meetup Location */}
             <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 sm:p-6 space-y-4">

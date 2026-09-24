@@ -1,0 +1,7 @@
+{
+  "mae": 231.88,
+  "rmse": 638.32,
+  "r2_score": 0.973,
+  "mape_percent": 20.43,
+  "n_test_samples": 600
+}

@@ -480,3 +480,181 @@ npm run lint          # Validates tsc on server and oxlint on client (zero error
 
 
 
+---
+
+## Phase 8: Collex Price Intelligence (ML Service)
+
+### What Is It?
+
+A separate Python/FastAPI microservice that uses a trained machine learning model to estimate a fair selling price for a second-hand campus item. It runs on port 8000 and is only accessible through the Node.js backend (the browser never talks to it directly).
+
+### Why a Separate Python Service?
+
+Node.js is poor for ML. The Python ML ecosystem (scikit-learn, pandas, numpy) is mature and widely used in industry. Keeping them separate follows the microservices pattern: each service does what it is best at.
+
+```
+Browser --> Node.js (port 5000) --> Python ML (port 8000)
+              |
+              |-- Authenticates the user (JWT)
+              |-- Validates the request
+              |-- Forwards to ML service
+              |-- Returns ML response to client
+```
+
+This means the Python service URL (port 8000) is never exposed to the internet. Only the Node.js server can reach it.
+
+### How Does the ML Pipeline Work?
+
+1. **generate_dataset.py** creates synthetic training data (3,000 rows)
+2. **train.py** builds a preprocessing + model pipeline:
+   - `OneHotEncoder` for categorical features (category, condition, listing_type)
+   - `passthrough` for numeric features (price, age, engineered ratio)
+   - `RandomForestRegressor` as the estimator
+3. `joblib.dump(pipeline, "model/price_model.joblib")` saves it to disk
+4. **predictor.py** loads the saved pipeline at startup (once) and calls `.predict()` on each request
+5. **main.py** (FastAPI) exposes `POST /price/predict` and uses the predictor singleton
+
+### Why scikit-learn Pipeline?
+
+A common mistake is to apply preprocessing separately from the model. This causes "training-serving skew" - your model was trained on processed data but you forget to apply the same transformation at inference time. `sklearn.Pipeline` guarantees that the exact same preprocessing is always applied both during training and prediction.
+
+```python
+# ONE object handles both:
+pipeline.fit(X_train, y_train)    # preprocessing + training in one step
+pipeline.predict(X_test)          # same preprocessing + inference
+```
+
+### Why RandomForest?
+
+- Robust to outliers (campus prices range from Rs10 to Rs80,000)
+- Handles non-linear relationships (depreciation is not linear with age)
+- No feature scaling required
+- Individual tree variance gives free uncertainty estimates
+- Easy to explain in interviews
+
+### Uncertainty Quantification
+
+A key feature is honest confidence estimation. We use the variance across the 200 individual decision trees:
+
+```python
+estimators = pipeline.named_steps["regressor"].estimators_
+tree_preds = [t.predict(X)[0] for t in estimators]
+std = np.std(tree_preds)
+```
+
+High std = trees disagree a lot = LOW confidence. Low std = trees agree = potentially HIGH confidence. This is not a perfect probability estimate but it is honest and interpretable.
+
+### Debounced API Calls in the Frontend
+
+The SellItemPage calls the price prediction API as the user fills in the form. To avoid spamming the API on every keystroke:
+
+```typescript
+// Wait 800ms after the user stops changing values before calling the API
+priceDebounceRef.current = setTimeout(async () => {
+  const result = await mlService.predictPrice({ ... });
+  setPricePrediction(result);
+}, 800);
+
+// Cancel the pending call if the user changes values again
+if (priceDebounceRef.current) clearTimeout(priceDebounceRef.current);
+```
+
+This is called "debouncing" and is a standard UX pattern for expensive async operations.
+
+---
+
+## Phase 9: Collex Shield (Risk Assessment)
+
+### What Is It?
+
+A rule-based engine that evaluates signals about a listing and seller to produce an advisory risk assessment. It helps buyers make informed decisions but never definitively accuses sellers of fraud.
+
+### The Core Design Rule: Advisory Language
+
+This is the most important engineering constraint in the entire feature. Every signal, every UI string, and every API response must use advisory language:
+
+- CORRECT: "Price is substantially lower than similar listings."
+- WRONG: "This listing is probably a scam."
+- CORRECT: "Seller account was very recently created."
+- WRONG: "This seller is suspicious."
+
+Why? Because:
+1. Legitimate sellers will trigger these signals (student urgently selling before exams)
+2. Definitively labeling a real person as fraudulent has serious legal implications
+3. Trust is Collex's core brand value - being wrong and accusatory destroys trust faster than fraud
+
+### How Risk Scoring Works
+
+```python
+score = 0
+
+if listing_price < (fair_price * 0.15):   # extreme low price
+    score += 40
+elif listing_price < (fair_price * 0.35): # substantially low
+    score += 25
+
+if seller_account_age_days < 3:   # very new
+    score += 20
+elif seller_account_age_days < 14: # recent
+    score += 10
+
+# ... more signals ...
+
+score = min(score, 100)  # cap at 100
+
+if score >= 50: risk_level = "HIGH"
+elif score >= 20: risk_level = "MEDIUM"
+else: risk_level = "LOW"
+```
+
+Signals are additive. A listing with multiple medium signals accumulates into HIGH risk. A single signal that is easily explained (new account but everything else is clean) stays MEDIUM.
+
+### Fair Price Estimation in Shield
+
+The shield's price anomaly detection uses the **same deterministic formula** as the training data generator, not the ML model. This is intentional:
+
+- The ML model has uncertainty and occasionally produces surprising predictions
+- A deterministic formula (original_price * condition_factor * age_factor) is predictable and explainable
+- This consistency prevents the shield from being gamed through edge cases in the ML model
+
+### Graceful Degradation
+
+If the ML service is down, the shield and price intelligence features fail silently on the frontend:
+
+```typescript
+try {
+  const result = await mlService.checkShield({ ... });
+  setShieldResult(result);
+} catch {
+  // Shield unavailable - don't block the listing view
+}
+```
+
+The user can still view and interact with listings. The ML features are enhancements, not required functionality.
+
+### False Positive Awareness
+
+Collex Shield has a deliberate "be helpful but not harmful" design:
+
+- LOW risk: subtle shield badge, minimal UI (don't scare buyers away from good listings)
+- MEDIUM risk: expandable badge, signals listed, neutral tone
+- HIGH risk: expanded by default, full buyer guidance, always includes disclaimer
+
+Every single buyer guidance message ends with either "These signals do not necessarily indicate a problem" or a reminder that legitimate scenarios exist.
+
+### Interview Questions for Phase 8 & 9
+
+**Q: What is a scikit-learn Pipeline and why use it?**
+A: A Pipeline chains preprocessing steps and a model into a single object. It prevents training-serving skew (the bug where you forget to apply preprocessing at inference time). It also makes the code cleaner and the model artifact completely self-contained.
+
+**Q: How would you evaluate a price prediction model for a marketplace?**
+A: Primary metric: MAPE (Mean Absolute Percentage Error) because it is scale-independent and business-interpretable ("we are off by X% on average"). MAE in rupees matters for absolute budget. R2 tells you how well the model explains variance vs. predicting the mean. Avoid RMSE as the primary metric because it is sensitive to outliers.
+
+**Q: Why not use a deep learning model for price prediction?**
+A: Dataset size. With 3,000 rows of synthetic data, a neural network would overfit severely. RandomForest is the correct choice at this data scale. Revisit with gradient boosting (XGBoost) when real transaction data accumulates to ~50,000+ rows.
+
+**Q: How do you prevent bad actors from gaming Collex Shield?**
+A: Specific weights are not published. Signals are evaluated simultaneously, so improving one does not guarantee avoiding detection. Future: add behavioral signals (message patterns, device fingerprints) that are much harder to fake than account age.
+
+**Q: How do you handle false positives in a safety system?**
+A: Design the system's language to be advisory not accusatory. Expose signals with explanations, not verdicts. Build a moderator feedback loop so false positives can be dismissed and create training data for future models. Surface false positive metrics in admin dashboards. Never allow the system to take automated punitive action (blocking) without human moderator review.

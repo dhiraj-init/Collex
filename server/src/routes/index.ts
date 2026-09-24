@@ -6,6 +6,7 @@ import chatRoutes from './chatRoutes';
 import transactionRoutes from './transactionRoutes';
 import reviewRoutes from './reviewRoutes';
 import trustRoutes from './trustRoutes';
+import mlRoutes from './mlRoutes';
 
 const apiRouter = Router();
 
@@ -29,5 +30,8 @@ apiRouter.use('/reviews', reviewRoutes);
 
 // 7. Trust & Safety: /api/v1/trust
 apiRouter.use('/trust', trustRoutes);
+
+// 8 & 9. ML Service Proxy (Price Intelligence + Collex Shield): /api/v1/ml
+apiRouter.use('/ml', mlRoutes);
 
 export default apiRouter;
