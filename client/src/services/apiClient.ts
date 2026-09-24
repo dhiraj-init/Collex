@@ -14,14 +14,22 @@ export class ApiError extends Error {
 }
 
 /**
- * Standard HTTP Fetch Request Wrapper
+ * Standard HTTP Fetch Request Wrapper with Automatic Bearer Token Injection
  */
-async function request<T>(endpoint: string, options: RequestInit = {}): Promise<ApiResponse<T>> {
+export async function request<T>(endpoint: string, options: RequestInit = {}): Promise<ApiResponse<T>> {
   const url = `${env.apiUrl}${endpoint.startsWith('/') ? endpoint : `/${endpoint}`}`;
 
   const headers = new Headers(options.headers || {});
   if (!headers.has('Content-Type') && !(options.body instanceof FormData)) {
     headers.set('Content-Type', 'application/json');
+  }
+
+  // Inject Bearer token if present and not already specified
+  if (!headers.has('Authorization')) {
+    const token = localStorage.getItem('collex_access_token');
+    if (token) {
+      headers.set('Authorization', `Bearer ${token}`);
+    }
   }
 
   try {
@@ -58,5 +66,34 @@ export const apiClient = {
    */
   async getHealth(): Promise<ApiResponse<HealthData>> {
     return request<HealthData>('/health');
+  },
+
+  async get<T>(endpoint: string): Promise<ApiResponse<T>> {
+    return request<T>(endpoint, { method: 'GET' });
+  },
+
+  async post<T>(endpoint: string, body?: unknown): Promise<ApiResponse<T>> {
+    return request<T>(endpoint, {
+      method: 'POST',
+      body: body ? JSON.stringify(body) : undefined,
+    });
+  },
+
+  async put<T>(endpoint: string, body?: unknown): Promise<ApiResponse<T>> {
+    return request<T>(endpoint, {
+      method: 'PUT',
+      body: body ? JSON.stringify(body) : undefined,
+    });
+  },
+
+  async patch<T>(endpoint: string, body?: unknown): Promise<ApiResponse<T>> {
+    return request<T>(endpoint, {
+      method: 'PATCH',
+      body: body ? JSON.stringify(body) : undefined,
+    });
+  },
+
+  async delete<T>(endpoint: string): Promise<ApiResponse<T>> {
+    return request<T>(endpoint, { method: 'DELETE' });
   },
 };

@@ -2,6 +2,7 @@ import { app } from './app';
 import { config, validateEnv } from './config/env';
 import { connectDB, disconnectDB } from './config/db';
 import { logger } from './utils/logger';
+import { seedInitialListingsIfEmpty } from './utils/seedListings';
 
 async function bootstrap(): Promise<void> {
   try {
@@ -10,6 +11,9 @@ async function bootstrap(): Promise<void> {
 
     // 2. Connect to Database (Non-blocking fallback to degraded status)
     await connectDB();
+
+    // 3. Seed initial campus listings if database is empty
+    await seedInitialListingsIfEmpty();
 
     // 3. Start Express HTTP Server
     const server = app.listen(config.port, () => {

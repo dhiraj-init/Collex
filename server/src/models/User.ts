@@ -1,4 +1,4 @@
-import mongoose, { Document, Model, Schema } from 'mongoose';
+import mongoose, { Document, Model, Schema, Types } from 'mongoose';
 import bcrypt from 'bcryptjs';
 
 export type UserRole = 'STUDENT' | 'MODERATOR' | 'COLLEGE_ADMIN' | 'SUPER_ADMIN';
@@ -20,6 +20,7 @@ export interface IUser extends Document {
   verificationTokenExpires?: Date;
   trustScore: number;
   refreshToken?: string;
+  savedListings?: Types.ObjectId[];
   createdAt: Date;
   updatedAt: Date;
   comparePassword(candidatePassword: string): Promise<boolean>;
@@ -102,6 +103,12 @@ const userSchema = new Schema<IUser>(
       type: String,
       select: false,
     },
+    savedListings: [
+      {
+        type: Schema.Types.ObjectId,
+        ref: 'Listing',
+      },
+    ],
   },
   {
     timestamps: true,

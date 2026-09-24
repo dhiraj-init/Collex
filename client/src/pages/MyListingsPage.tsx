@@ -9,13 +9,20 @@ import {
   MapPin
 } from 'lucide-react';
 import { useMarketplace } from '../context/MarketplaceContext';
+import { useAuth } from '../context/AuthContext';
 import { EmptyState } from '../components/common/EmptyState';
 
 export const MyListingsPage: React.FC = () => {
   const { listings, user, toggleListingStatus, deleteListing } = useMarketplace();
+  const { user: authUser } = useAuth();
   const [filterStatus, setFilterStatus] = useState<'all' | 'active' | 'reserved' | 'sold'>('all');
 
-  const myListings = listings.filter((item) => item.seller.id === user.id);
+  const currentUserId = authUser?.id || user.id;
+  const currentUserName = authUser?.fullName || user.fullName;
+
+  const myListings = listings.filter(
+    (item) => item.seller.id === currentUserId || item.seller.name === currentUserName
+  );
 
   const filtered = myListings.filter((item) => {
     if (filterStatus === 'active') return !item.isReserved && !item.isSold;

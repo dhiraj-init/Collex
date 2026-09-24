@@ -7,7 +7,8 @@ import {
   Image as ImageIcon, 
   Eye, 
   Info,
-  CheckCircle2
+  CheckCircle2,
+  Upload
 } from 'lucide-react';
 import { useMarketplace } from '../context/MarketplaceContext';
 import type { MockListing } from '../data/mockData';
@@ -62,14 +63,14 @@ export const SellItemPage: React.FC = () => {
 
   const activePhoto = customPhotoUrl.trim() || selectedPhoto;
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!title.trim() || !description.trim()) return;
 
     setIsSubmitting(true);
 
-    setTimeout(() => {
-      const newListingId = addListing({
+    try {
+      const newListingId = await addListing({
         title: title.trim(),
         description: description.trim(),
         price: dealType === 'Free' ? 0 : Number(price) || 0,
@@ -86,8 +87,11 @@ export const SellItemPage: React.FC = () => {
 
       setTimeout(() => {
         navigate(`/listing/${newListingId}`);
-      }, 1000);
-    }, 600);
+      }, 800);
+    } catch (err) {
+      console.error(err);
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -324,10 +328,43 @@ export const SellItemPage: React.FC = () => {
                   ))}
                 </div>
 
+                <div className="flex items-center space-x-2 my-2.5">
+                  <label className="cursor-pointer inline-flex items-center space-x-1.5 px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-medium border border-slate-750 transition-colors">
+                    <Upload className="w-3.5 h-3.5 text-emerald-400" />
+                    <span>Upload from Device</span>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) {
+                          const reader = new FileReader();
+                          reader.onload = () => {
+                            if (typeof reader.result === 'string') {
+                              setCustomPhotoUrl(reader.result);
+                            }
+                          };
+                          reader.readAsDataURL(file);
+                        }
+                      }}
+                    />
+                  </label>
+                  {customPhotoUrl && (
+                    <button
+                      type="button"
+                      onClick={() => setCustomPhotoUrl('')}
+                      className="text-[11px] text-red-400 hover:text-red-300"
+                    >
+                      Clear custom image
+                    </button>
+                  )}
+                </div>
+
                 <input
                   type="url"
                   placeholder="Or paste custom image link (optional)"
-                  value={customPhotoUrl}
+                  value={customPhotoUrl.startsWith('data:') ? '' : customPhotoUrl}
                   onChange={(e) => setCustomPhotoUrl(e.target.value)}
                   className="w-full bg-slate-950 border border-slate-700 focus:border-emerald-500 rounded-xl px-3.5 py-2 text-xs text-white outline-none"
                 />

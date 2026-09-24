@@ -1,0 +1,227 @@
+import { Listing } from '../models/Listing';
+import { User } from '../models/User';
+
+export async function seedInitialListingsIfEmpty() {
+  try {
+    const count = await Listing.countDocuments();
+    if (count > 0) {
+      return; // Already populated
+    }
+
+    console.log('[Seed] Database has 0 listings. Seeding initial campus listings...');
+
+    // Find or create a demo seller student
+    let demoSeller = await User.findOne({ email: 'aryan.sharma@iitb.ac.in' });
+    if (!demoSeller) {
+      demoSeller = await User.create({
+        fullName: 'Aryan Sharma',
+        email: 'aryan.sharma@iitb.ac.in',
+        password: 'Password@123',
+        college: 'IIT Bombay',
+        collegeDomain: 'iitb.ac.in',
+        branch: 'Computer Science',
+        graduationYear: '2026',
+        avatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=200&q=80',
+        role: 'STUDENT',
+        verificationStatus: 'STUDENT_VERIFIED',
+        trustScore: 98,
+      });
+    }
+
+    let rohitSeller = await User.findOne({ email: 'rohit.mehta@iitb.ac.in' });
+    if (!rohitSeller) {
+      rohitSeller = await User.create({
+        fullName: 'Rohit Mehta',
+        email: 'rohit.mehta@iitb.ac.in',
+        password: 'Password@123',
+        college: 'IIT Bombay',
+        collegeDomain: 'iitb.ac.in',
+        branch: 'Mechanical Engineering',
+        graduationYear: '2025',
+        avatar: 'https://images.unsplash.com/photo-1570295999919-56ceb5ecca61?auto=format&fit=crop&w=200&q=80',
+        role: 'STUDENT',
+        verificationStatus: 'STUDENT_VERIFIED',
+        trustScore: 94,
+      });
+    }
+
+    const sampleListings = [
+      {
+        seller: demoSeller._id,
+        college: 'IIT Bombay',
+        title: 'Casio FX-991EX ClassWiz Scientific Calculator',
+        description: 'Original Casio scientific calculator with 552 functions and high-resolution spreadsheet display. Crucial for engineering semester exams and lab calculations. Mint condition with slide-on hard case.',
+        category: 'ELECTRONICS',
+        listingType: 'SELL',
+        price: 950,
+        originalPrice: 1695,
+        negotiable: true,
+        itemCondition: 'LIKE_NEW',
+        brand: 'Casio',
+        purchaseAge: '1 semester',
+        images: ['https://images.unsplash.com/photo-1594980596870-8aa52a78d8cd?auto=format&fit=crop&w=800&q=80'],
+        tags: ['Casio calculator', 'scientific calculator', 'exam', 'engineering', 'fx991ex'],
+        status: 'ACTIVE',
+        viewsCount: 142,
+        savesCount: 19,
+      },
+      {
+        seller: demoSeller._id,
+        college: 'IIT Bombay',
+        title: 'Fundamentals of Database Systems (DBMS book) - 7th Edition',
+        description: 'Standard Elmasri & Navathe textbook for 3rd semester DBMS course. Pristine condition, zero pencil annotations, covers relational algebra, normalization, transactions, and indexing.',
+        category: 'TEXTBOOKS',
+        listingType: 'SELL',
+        price: 650,
+        originalPrice: 1150,
+        negotiable: false,
+        itemCondition: 'BRAND_NEW',
+        brand: 'Pearson',
+        purchaseAge: '4 months',
+        images: ['https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?auto=format&fit=crop&w=800&q=80'],
+        tags: ['DBMS book', 'database', 'CSE', 'textbook', 'Elmasri'],
+        status: 'ACTIVE',
+        viewsCount: 98,
+        savesCount: 12,
+      },
+      {
+        seller: rohitSeller._id,
+        college: 'IIT Bombay',
+        title: 'Hercules Roadeo 21-Speed Gear Campus Cycle',
+        description: 'Dual disc brakes, front shock suspension, broad grip tires. Ideal for hostel to academic quad commute. Comes with heavy-duty number combination lock and bell.',
+        category: 'BICYCLES',
+        listingType: 'SELL',
+        price: 3400,
+        originalPrice: 7999,
+        negotiable: true,
+        itemCondition: 'GOOD',
+        brand: 'Hercules',
+        purchaseAge: '1 year',
+        images: ['https://images.unsplash.com/photo-1485965120184-e220f721d03e?auto=format&fit=crop&w=800&q=80'],
+        tags: ['cycle', 'bicycle', 'campus commute', 'hercules', 'geared cycle'],
+        status: 'ACTIVE',
+        viewsCount: 310,
+        savesCount: 45,
+      },
+      {
+        seller: demoSeller._id,
+        college: 'IIT Bombay',
+        title: 'Complete TY CSE Books Set & Lab Manuals (Semester 5 & 6)',
+        description: 'Complete curated bundle of Third Year Computer Science textbooks: Operating Systems (Silberschatz), Computer Networks (Tanenbaum), Theory of Computation (Hopcroft), and Compiler Design (Aho). Includes printed lab manuals.',
+        category: 'TEXTBOOKS',
+        listingType: 'SELL',
+        price: 1800,
+        originalPrice: 4200,
+        negotiable: true,
+        itemCondition: 'GOOD',
+        brand: 'Pearson / McGraw Hill',
+        purchaseAge: '1 year',
+        images: ['https://images.unsplash.com/photo-1497633762265-9d179a990aa6?auto=format&fit=crop&w=800&q=80'],
+        tags: ['TY CSE books', 'CSE bundle', 'computer science', 'OS', 'networks'],
+        status: 'ACTIVE',
+        viewsCount: 215,
+        savesCount: 32,
+      },
+      {
+        seller: demoSeller._id,
+        college: 'IIT Bombay',
+        title: 'Arduino Uno R3 Ultimate Starter Kit with Sensors',
+        description: 'Original ATmega328P Arduino board with breadboard, ultrasonic sensor, HC-05 Bluetooth module, servo motor, LEDs, jumper wires, and 16x2 LCD display. Everything needed for IoT and embedded lab projects.',
+        category: 'ELECTRONICS',
+        listingType: 'SELL',
+        price: 850,
+        originalPrice: 1550,
+        negotiable: false,
+        itemCondition: 'LIKE_NEW',
+        brand: 'Arduino / RoboCraze',
+        purchaseAge: '5 months',
+        images: ['https://images.unsplash.com/photo-1553406830-ef2513450d76?auto=format&fit=crop&w=800&q=80'],
+        tags: ['Arduino', 'microcontroller', 'IoT', 'electronics', 'sensors'],
+        status: 'ACTIVE',
+        viewsCount: 167,
+        savesCount: 28,
+      },
+      {
+        seller: rohitSeller._id,
+        college: 'IIT Bombay',
+        title: 'Bajaj 1.5L Stainless Steel Electric Kettle',
+        description: '360-degree cordless base, auto shut-off, rapid boil. Essential for late-night ramen, coffee, and tea in hostel rooms.',
+        category: 'APPLIANCES',
+        listingType: 'SELL',
+        price: 499,
+        originalPrice: 1100,
+        negotiable: false,
+        itemCondition: 'LIKE_NEW',
+        brand: 'Bajaj',
+        purchaseAge: '6 months',
+        images: ['https://images.unsplash.com/photo-1585837575652-267c041d77d4?auto=format&fit=crop&w=800&q=80'],
+        tags: ['kettle', 'hostel essentials', 'appliances', 'maggi'],
+        status: 'ACTIVE',
+        viewsCount: 88,
+        savesCount: 14,
+      },
+      {
+        seller: demoSeller._id,
+        college: 'IIT Bombay',
+        title: 'Ergonomic Mesh Study Chair with Lumbar Support',
+        description: 'Padded high-density foam seat, breathable mesh back, adjustable height gas-lift cylinder. Smooth-rolling nylon caster wheels.',
+        category: 'DORM_ESSENTIALS',
+        listingType: 'SELL',
+        price: 1800,
+        originalPrice: 3800,
+        negotiable: true,
+        itemCondition: 'GOOD',
+        brand: 'Green Soul',
+        purchaseAge: '8 months',
+        images: ['https://images.unsplash.com/photo-1580481077195-c3a82da91883?auto=format&fit=crop&w=800&q=80'],
+        tags: ['chair', 'study chair', 'hostel room', 'furniture'],
+        status: 'ACTIVE',
+        viewsCount: 120,
+        savesCount: 15,
+      },
+      {
+        seller: rohitSeller._id,
+        college: 'IIT Bombay',
+        title: 'Logitech K380 Multi-Device Bluetooth Keyboard',
+        description: 'Compact wireless keyboard, pairs with up to 3 devices simultaneously (laptop, iPad, phone). Battery lasts up to 2 years.',
+        category: 'ELECTRONICS',
+        listingType: 'SELL',
+        price: 1200,
+        originalPrice: 2495,
+        negotiable: true,
+        itemCondition: 'LIKE_NEW',
+        brand: 'Logitech',
+        purchaseAge: '3 months',
+        images: ['https://images.unsplash.com/photo-1587829741301-dc798b83add3?auto=format&fit=crop&w=800&q=80'],
+        tags: ['keyboard', 'logitech', 'bluetooth', 'coding'],
+        status: 'ACTIVE',
+        viewsCount: 175,
+        savesCount: 22,
+      },
+      {
+        seller: demoSeller._id,
+        college: 'IIT Bombay',
+        title: 'Drafting Board (Mini Drafter) for Engineering Graphics',
+        description: 'Precision engineering mini drafter with steel clamp and dual protractor scales. Includes sturdy water-resistant carrying case.',
+        category: 'NOTES_STUDY_MATERIAL',
+        listingType: 'SELL',
+        price: 350,
+        originalPrice: 750,
+        negotiable: false,
+        itemCondition: 'GOOD',
+        brand: 'Omega',
+        purchaseAge: '1 semester',
+        images: ['https://images.unsplash.com/photo-1581291518655-9523c932deda?auto=format&fit=crop&w=800&q=80'],
+        tags: ['mini drafter', 'engineering graphics', 'ED', 'first year'],
+        status: 'ACTIVE',
+        viewsCount: 65,
+        savesCount: 9,
+      }
+    ];
+
+    await Listing.insertMany(sampleListings);
+    console.log(`[Seed] Successfully seeded ${sampleListings.length} initial campus marketplace listings!`);
+  } catch (error) {
+    console.error('[Seed] Error seeding listings:', error);
+  }
+}

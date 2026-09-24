@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+/* oxlint-disable react/set-state-in-effect */
+import React, { useState, useEffect } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { 
   ArrowLeft, 
@@ -10,26 +11,74 @@ import {
   Tag, 
   CheckCircle2, 
   Check, 
-  Eye
+  Eye,
+  Trash2
 } from 'lucide-react';
-import { useMarketplace } from '../context/MarketplaceContext';
+import { useMarketplace, apiListingToMockListing } from '../context/MarketplaceContext';
+import { useAuth } from '../context/AuthContext';
+import { listingService } from '../services/listingService';
 import { ListingCard } from '../components/marketplace/ListingCard';
+import type { MockListing } from '../data/mockData';
 
 export const ListingDetailPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { listings, isListingSaved, toggleSaveListing, sendMessage, conversations } = useMarketplace();
-
-  const listing = listings.find((item) => item.id === id);
+  const { user: authUser } = useAuth();
+  const { 
+    listings, 
+    isListingSaved, 
+    toggleSaveListing, 
+    sendMessage, 
+    conversations,
+    toggleListingStatus,
+    deleteListing
+  } = useMarketplace();
 
   const [activePhotoIndex, setActivePhotoIndex] = useState(0);
   const [isOfferModalOpen, setIsOfferModalOpen] = useState(false);
-  const [offerPrice, setOfferPrice] = useState<number | string>(listing ? listing.price : '');
+  const [offerPrice, setOfferPrice] = useState<number | string>('');
   const [offerNote, setOfferNote] = useState('');
   const [offerSuccess, setOfferSuccess] = useState(false);
   const [copiedLink, setCopiedLink] = useState(false);
 
-  if (!listing) {
+  // Live state from API if available
+  const [liveListing, setLiveListing] = useState<MockListing | null>(null);
+  const [apiRelated, setApiRelated] = useState<MockListing[]>([]);
+  const [isLoadingLive, setIsLoadingLive] = useState(false);
+
+  // Prioritize live backend data, fallback to context
+  const contextListing = listings.find((item) => item.id === id);
+  const listing = liveListing || contextListing;
+
+  useEffect(() => {
+    if (!id) return;
+    let isMounted = true;
+    setIsLoadingLive(true);
+
+    listingService.getListingById(id)
+      .then((res) => {
+        if (!isMounted) return;
+        if (res && res.listing) {
+          const mapped = apiListingToMockListing(res.listing);
+          setLiveListing(mapped);
+          if (res.relatedListings) {
+            setApiRelated(res.relatedListings.map(apiListingToMockListing));
+          }
+        }
+      })
+      .catch(() => {
+        // Fallback to local context data
+      })
+      .finally(() => {
+        if (isMounted) setIsLoadingLive(false);
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [id]);
+
+  if (!listing && !isLoadingLive) {
     return (
       <div className="max-w-4xl mx-auto px-4 py-20 text-center space-y-4">
         <h2 className="text-xl font-bold text-white">Listing Not Found</h2>
@@ -44,6 +93,16 @@ export const ListingDetailPage: React.FC = () => {
       </div>
     );
   }
+
+  if (!listing) return null;
+
+  const isOwner = Boolean(
+    authUser && (listing.seller.id === authUser.id || (listing.seller as unknown as Record<string, string>)._id === authUser.id)
+  );
+
+  const relatedListings = apiRelated.length > 0 
+    ? apiRelated 
+    : listings.filter((item) => item.id !== listing.id && item.college === listing.college && item.category === listing.category).slice(0, 3);
 
   const saved = isListingSaved(listing.id);
   const discountPercent = listing.originalPrice && listing.originalPrice > listing.price
@@ -62,7 +121,6 @@ export const ListingDetailPage: React.FC = () => {
     setTimeout(() => {
       setOfferSuccess(false);
       setIsOfferModalOpen(false);
-      // Navigate to chat
       navigate('/messages');
     }, 1200);
   };
@@ -72,77 +130,145 @@ export const ListingDetailPage: React.FC = () => {
     if (conv) {
       navigate('/messages');
     } else {
-      // Send initial inquiry message
       sendMessage(conversations[0]?.id || 'conv-1', `Hi ${listing.seller.name}! Is "${listing.title}" still available?`);
       navigate('/messages');
     }
   };
 
-  const relatedListings = listings
-    .filter((item) => item.id !== listing.id && (item.category === listing.category || item.college === listing.college))
-    .slice(0, 3);
+  const handleStatusChange = async (action: 'reserve' | 'sold' | 'activate') => {
+    await toggleListingStatus(listing.id, action);
+    if (liveListing) {
+      setLiveListing({
+        ...liveListing,
+        isReserved: action === 'reserve',
+        isSold: action === 'sold',
+      });
+    }
+  };
+
+  const handleDelete = async () => {
+    if (window.confirm('Are you sure you want to remove this listing?')) {
+      await deleteListing(listing.id);
+      navigate('/my-listings');
+    }
+  };
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-8">
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
       
-      {/* Back button & Breadcrumbs */}
+      {/* Top Nav Breadcrumbs & Actions */}
       <div className="flex items-center justify-between">
-        <button
-          type="button"
-          onClick={() => navigate(-1)}
-          className="inline-flex items-center space-x-2 text-xs font-medium text-slate-400 hover:text-white transition-colors"
+        <Link
+          to="/marketplace"
+          className="inline-flex items-center space-x-1.5 text-xs font-semibold text-slate-400 hover:text-white transition-colors"
         >
           <ArrowLeft className="w-4 h-4" />
-          <span>Back</span>
-        </button>
+          <span>Back to Marketplace</span>
+        </Link>
 
         <div className="flex items-center space-x-2">
           <button
             type="button"
             onClick={handleShare}
-            className="flex items-center space-x-1.5 px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-800 hover:border-slate-700 text-xs text-slate-300 transition-colors"
+            className="flex items-center space-x-1.5 px-3 py-1.5 rounded-xl bg-slate-900 border border-slate-800 text-slate-300 hover:text-white text-xs font-medium transition-colors"
           >
             {copiedLink ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Share2 className="w-3.5 h-3.5" />}
-            <span>{copiedLink ? 'Link Copied!' : 'Share'}</span>
+            <span>{copiedLink ? 'Copied' : 'Share'}</span>
           </button>
 
           <button
             type="button"
-            onClick={() => toggleSaveListing(listing.id)}
-            className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-lg border text-xs transition-colors ${
+            onClick={() => void toggleSaveListing(listing.id)}
+            className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-xl border text-xs font-medium transition-colors ${
               saved 
                 ? 'bg-emerald-950/80 border-emerald-700 text-emerald-300' 
                 : 'bg-slate-900 border-slate-800 text-slate-300 hover:text-white'
             }`}
           >
-            <Bookmark className={`w-3.5 h-3.5 ${saved ? 'fill-current' : ''}`} />
+            <Bookmark className={`w-3.5 h-3.5 ${saved ? 'fill-emerald-400 text-emerald-400' : ''}`} />
             <span>{saved ? 'Saved' : 'Save'}</span>
           </button>
         </div>
       </div>
 
-      {/* Main Listing Layout: Left Images, Right Details */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+      {/* Seller Management Banner (if current student is owner) */}
+      {isOwner && (
+        <div className="p-4 rounded-2xl bg-slate-900/90 border border-emerald-500/30 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-md">
+          <div className="flex items-center space-x-2.5">
+            <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse" />
+            <span className="text-xs font-semibold text-white">
+              You are the seller of this listing.
+            </span>
+            <span className="text-[11px] text-slate-400">
+              Current status: <strong className="text-emerald-400 font-mono uppercase">{listing.isSold ? 'SOLD' : listing.isReserved ? 'RESERVED' : 'ACTIVE'}</strong>
+            </span>
+          </div>
+
+          <div className="flex items-center space-x-2">
+            {!listing.isReserved && !listing.isSold && (
+              <button
+                type="button"
+                onClick={() => void handleStatusChange('reserve')}
+                className="px-3 py-1.5 rounded-lg bg-amber-950/80 border border-amber-800 text-amber-300 text-xs font-medium hover:bg-amber-900"
+              >
+                Mark Reserved
+              </button>
+            )}
+            {!listing.isSold && (
+              <button
+                type="button"
+                onClick={() => void handleStatusChange('sold')}
+                className="px-3 py-1.5 rounded-lg bg-emerald-950/80 border border-emerald-800 text-emerald-300 text-xs font-medium hover:bg-emerald-900"
+              >
+                Mark as Sold
+              </button>
+            )}
+            {(listing.isReserved || listing.isSold) && (
+              <button
+                type="button"
+                onClick={() => void handleStatusChange('activate')}
+                className="px-3 py-1.5 rounded-lg bg-slate-800 border border-slate-700 text-slate-200 text-xs font-medium hover:bg-slate-700"
+              >
+                Re-activate
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={() => void handleDelete()}
+              className="p-1.5 rounded-lg bg-red-950/60 border border-red-900/80 text-red-400 hover:text-red-300"
+              title="Delete Listing"
+            >
+              <Trash2 className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Main Grid: Gallery (7 cols) + Details (5 cols) */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
         
-        {/* Left Col: Photo Gallery (lg: 7 cols) */}
+        {/* Left Col: Photo Gallery */}
         <div className="lg:col-span-7 space-y-4">
-          {/* Main Photo View */}
-          <div className="relative aspect-4/3 rounded-2xl overflow-hidden bg-slate-950 border border-slate-800 shadow-md">
+          <div className="relative aspect-4/3 w-full rounded-2xl bg-slate-900 border border-slate-800 overflow-hidden shadow-sm">
             <img
               src={listing.photos[activePhotoIndex] || listing.photos[0]}
               alt={listing.title}
               className="w-full h-full object-cover"
             />
-            {listing.dealType === 'Free' && (
-              <span className="absolute top-4 left-4 bg-emerald-600 text-white font-bold text-xs uppercase tracking-wider px-3 py-1 rounded-md shadow-sm">
-                FREE HAND-ME-DOWN
-              </span>
+            {listing.isReserved && (
+              <div className="absolute top-4 left-4 bg-amber-500/90 text-slate-950 text-xs font-bold px-3 py-1 rounded-full uppercase tracking-wider">
+                Reserved for Peer
+              </div>
+            )}
+            {listing.isSold && (
+              <div className="absolute top-4 left-4 bg-slate-900/95 border border-slate-700 text-slate-300 text-xs font-bold px-3 py-1 rounded-full uppercase tracking-wider">
+                Handed Over (Sold)
+              </div>
             )}
           </div>
 
-          {/* Thumbnails */}
           {listing.photos.length > 1 && (
-            <div className="flex items-center space-x-3 overflow-x-auto pb-1">
+            <div className="flex items-center space-x-3 overflow-x-auto pb-2">
               {listing.photos.map((photo, idx) => (
                 <button
                   key={idx}
@@ -164,7 +290,7 @@ export const ListingDetailPage: React.FC = () => {
           <div className="bg-slate-900/60 border border-slate-800/80 rounded-xl p-4 flex items-start space-x-3 text-xs text-slate-300">
             <ShieldCheck className="w-5 h-5 text-emerald-400 shrink-0 mt-0.5" />
             <div className="space-y-1">
-              <span className="font-semibold text-slate-100">Collex Campus Safety Promise</span>
+              <span className="font-semibold text-slate-100">Collex Hyperlocal Campus Safety</span>
               <p className="text-slate-400 font-normal leading-relaxed text-[11px]">
                 Always arrange in-person exchanges during daytime at designated public campus areas such as the Central Library, Department lobbies, or SAC. Inspect the item thoroughly before finalizing.
               </p>
@@ -172,10 +298,9 @@ export const ListingDetailPage: React.FC = () => {
           </div>
         </div>
 
-        {/* Right Col: Pricing, Description, Seller & Actions (lg: 5 cols) */}
+        {/* Right Col: Pricing, Description, Seller & Actions */}
         <div className="lg:col-span-5 space-y-6">
           
-          {/* Item Meta & Pricing */}
           <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 space-y-5 shadow-xs">
             
             {/* Category & Condition Tags */}
@@ -226,28 +351,33 @@ export const ListingDetailPage: React.FC = () => {
               </div>
             </div>
 
-            {/* Primary Action Buttons */}
-            <div className="space-y-2.5 pt-2">
-              <button
-                type="button"
-                onClick={handleStartChat}
-                className="w-full flex items-center justify-center space-x-2 bg-emerald-600 hover:bg-emerald-500 active:bg-emerald-700 text-white font-semibold text-xs sm:text-sm py-3 rounded-xl shadow-md transition-all"
-              >
-                <MessageSquare className="w-4 h-4" />
-                <span>Chat with Student Seller</span>
-              </button>
-
-              {listing.price > 0 && (
+            {/* Action Buttons */}
+            {!isOwner && (
+              <div className="space-y-2.5 pt-2">
                 <button
                   type="button"
-                  onClick={() => setIsOfferModalOpen(true)}
-                  className="w-full flex items-center justify-center space-x-2 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 font-semibold text-xs sm:text-sm py-3 rounded-xl transition-all"
+                  onClick={handleStartChat}
+                  className="w-full flex items-center justify-center space-x-2 bg-emerald-600 hover:bg-emerald-500 active:bg-emerald-700 text-white font-semibold text-xs sm:text-sm py-3 rounded-xl shadow-md transition-all"
                 >
-                  <Tag className="w-4 h-4 text-emerald-400" />
-                  <span>Make a Campus Offer</span>
+                  <MessageSquare className="w-4 h-4" />
+                  <span>Chat with Student Seller</span>
                 </button>
-              )}
-            </div>
+
+                {listing.price > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setOfferPrice(listing.price);
+                      setIsOfferModalOpen(true);
+                    }}
+                    className="w-full flex items-center justify-center space-x-2 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 font-semibold text-xs sm:text-sm py-3 rounded-xl transition-all"
+                  >
+                    <Tag className="w-4 h-4 text-emerald-400" />
+                    <span>Make a Campus Offer</span>
+                  </button>
+                )}
+              </div>
+            )}
 
             <div className="flex items-center justify-between text-[11px] text-slate-500 pt-1 font-mono">
               <span className="flex items-center space-x-1">

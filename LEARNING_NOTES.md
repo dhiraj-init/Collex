@@ -222,12 +222,113 @@ Collex is not an open, anonymous classifieds site. Trust relies on ensuring part
 #### Q2: How does Refresh Token Rotation prevent replay attacks?
 > **Answer:** Every time a client exchanges a refresh token for a new access token, the backend issues *both* a new access token and a brand-new refresh token, invalidating the previous refresh token. If a malicious actor intercepts a refresh token and attempts to use it later, the server detects that an already-used refresh token was submitted, flags suspicious activity, and invalidates all active sessions for that user.
 
-#### Q3: Why should passwords never be compared using `===` in backend code?
-> **Answer:** String comparison with `===` is vulnerable to **Timing Attacks**, where an attacker measures the sub-millisecond duration of string comparison to guess characters one by one. `bcrypt.compare()` executes in constant time with respect to the hash, completely eliminating timing leakage.
+---
+
+## Part 3: Hyperlocal Marketplace Architecture & Listing Lifecycle (Phase 3)
+
+### 1. Conceptual Breakdown for Beginners
+
+#### A. Listing Status State Machine
+A campus marketplace listing is not simply a static row; it transitions through a defined lifecycle:
+
+$$\boxed{\text{DRAFT}} \longrightarrow \boxed{\text{ACTIVE}} \rightleftarrows \boxed{\text{RESERVED}} \longrightarrow \boxed{\text{SOLD}} \longrightarrow \boxed{\text{ARCHIVED}}$$
+
+1. **`ACTIVE`**: Visible to all students on the campus feed. Inquiries and offers can be initiated.
+2. **`RESERVED`**: A buyer and seller have agreed on a meetup (e.g. at the campus library). The item remains listed with a "Reserved" banner so other students know negotiations are in progress.
+3. **`SOLD`**: The item has been physically handed over and payment settled. Removed from active search feeds but retained for seller analytics and transaction history.
+4. **`ARCHIVED`**: Delisted by the student or moderator.
+
+#### B. Ownership Authorization (The IDOR Defense)
+A critical security vulnerability in multi-tenant marketplaces is **Insecure Direct Object Reference (IDOR)**, where a malicious user edits the URL parameter from `/api/v1/listings/123` to `/api/v1/listings/124` to modify or delete someone else's listing.
+
+**How Collex Enforces Strict Ownership:**
+```ts
+// server/src/controllers/listingController.ts
+const isOwner = listing.seller.toString() === req.user._id.toString();
+const isStaff = req.user.role === 'SUPER_ADMIN' || req.user.role === 'MODERATOR';
+
+if (!isOwner && !isStaff) {
+  throw new AppError('Unauthorized: You can only edit your own listings', 403);
+}
+```
+Even if an attacker sends a valid JWT, the server explicitly matches the token's authenticated `userId` against the listing's `seller` ObjectId in MongoDB before permitting any mutation.
+
+#### C. Cloudinary CDN & Image Optimization
+Images are typically the heaviest assets on any marketplace page (often 2–5MB per smartphone photo).
+- **The Problem:** Serving raw multi-megabyte photos on mobile cellular networks slows page loads and triggers high bounce rates.
+- **The Solution:** Collex uploads photos to Cloudinary with automated pipeline transforms:
+  - `width: 1200, height: 900, crop: 'limit'`: Bounds images to screen dimensions.
+  - `quality: 'auto:good'`: Applies perceptual compression without visible quality degradation.
+  - `fetch_format: 'auto'`: Delivers next-gen WebP or AVIF formats based on browser support.
 
 ---
 
-### 3. Commands Reference
+## Part 4: Campus Discovery, Search & Trending Algorithm (Phase 4)
+
+### 1. The Campus Trending Score Algorithm
+
+To prevent fabricating fake trending metrics while keeping the campus feed engaging and dynamic, Collex implements an algorithmic decay scoring model inspired by Hacker News and Reddit:
+
+$$\text{TrendingScore} = \frac{\text{views} \times 1.5 + \text{saves} \times 3.0 + 10}{(\text{ageInHours} + 2)^{1.2}}$$
+
+#### Why This Mathematical Formula Works:
+1. **Purchase Intent Weighting ($\text{saves} \times 3.0$ vs $\text{views} \times 1.5$):**
+   - A *view* indicates passive browsing.
+   - A *save (bookmark)* indicates strong buying intent and high perceived value. Therefore, bookmarks carry twice the weight of casual views.
+2. **Cold-Start Base Boost ($+10$):**
+   - Brand new listings start with 0 views and 0 saves. Without the $+10$ constant, their initial score would be $0$, preventing new student listings from ever appearing on the trending feed.
+3. **Time-Decay Exponent ($(\text{ageInHours} + 2)^{1.2}$):**
+   - As hours elapse, the denominator grows exponentially. An older item with 300 views will gradually yield the top spot to a freshly posted scientific calculator or textbook with rapid early momentum.
+
+---
+
+### 2. MongoDB Indexing Strategy for Fast Campus Discovery
+
+Without indexes, MongoDB must perform a **Collection Scan (`COLLSCAN`)**, reading every single document in the collection into RAM. With thousands of items, queries become unacceptably slow.
+
+Collex defines three optimized compound indexes and a full-text search index in `server/src/models/Listing.ts`:
+
+```ts
+// 1. Campus Feed Index (Equality on college + Equality on status + Range/Sort on createdAt)
+listingSchema.index({ college: 1, status: 1, createdAt: -1 });
+
+// 2. Category & Price Filter Index (ESR Rule: Equality -> Sort -> Range)
+listingSchema.index({ college: 1, category: 1, status: 1, price: 1 });
+
+// 3. Seller Dashboard Index
+listingSchema.index({ seller: 1, status: 1 });
+
+// 4. Multi-Field Full-Text Search Index with Relevancy Weights
+listingSchema.index(
+  { title: 'text', description: 'text', brand: 'text', tags: 'text' },
+  { weights: { title: 10, brand: 5, tags: 5, description: 2 } }
+);
+```
+
+#### The ESR (Equality, Sort, Range) Rule Explained:
+When designing compound indexes in MongoDB:
+1. **Equality fields first:** Match exact college (`college: 'IIT Bombay'`) and status (`status: 'ACTIVE'`).
+2. **Sort fields second:** Match the ordering required (`createdAt: -1` or `price: 1`).
+3. **Range fields third:** Filters like `$gte` and `$lte` for price ranges.
+
+---
+
+### 3. Key Interview Questions & Answers (Phase 3 & Phase 4)
+
+#### Q1: What is the ESR rule in MongoDB indexing, and why is index order critical?
+> **Answer:** The ESR rule states that compound index keys should be ordered: **E**quality, **S**ort, **R**ange. If you place a range query field before a sort field, MongoDB cannot use the index to perform the sort in memory and must execute an expensive in-memory sort (`SORT_KEY_GENERATOR`), which errors out if the result set exceeds 32MB.
+
+#### Q2: What is an IDOR vulnerability, and how did we protect listing updates in Collex?
+> **Answer:** Insecure Direct Object Reference (IDOR) happens when an application relies on client-supplied IDs without verifying whether the requesting user actually owns that entity. In Collex, our `updateListing` and `deleteListing` controllers extract the authenticated `userId` from the verified JWT token (`req.user._id`) and verify that `listing.seller.equals(req.user._id)` before saving any changes.
+
+#### Q3: How do you handle image uploads in production without overwhelming your application server?
+> **Answer:** Uploading high-resolution images directly through Node.js consumes valuable CPU cycles and memory. The production approach is to either:
+> 1. Use Cloudinary/S3 **Presigned Direct Upload URLs**, allowing the frontend client to upload binary bytes directly to the storage bucket, bypassing the Node server entirely.
+> 2. Offload processing to a dedicated microservice or cloud transform pipeline that optimizes dimensions, formats (WebP/AVIF), and CDN caching headers automatically.
+
+---
+
+### 4. Commands Reference
 
 ```bash
 # Start local development servers:
@@ -240,4 +341,5 @@ npm run build         # Validates tsc on server and vite build on client (zero e
 # Run zero-warning lint check:
 npm run lint          # Validates tsc on server and oxlint on client (zero errors)
 ```
+
 
