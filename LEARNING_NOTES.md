@@ -328,11 +328,147 @@ When designing compound indexes in MongoDB:
 
 ---
 
-### 4. Commands Reference
+## Part 5: Real-Time Communication & Socket.IO Architecture (Phase 5)
+
+### 1. Conceptual Breakdown for Beginners
+
+#### A. HTTP Polling vs WebSockets (Socket.IO)
+In traditional HTTP (REST), communication is **unidirectional and request-driven**:
+$$\text{Client} \xrightarrow[\text{"Any new messages?"}]{\text{HTTP GET}} \text{Server} \xrightarrow[\text{"No"}]{200\text{ OK}} \text{Client}$$
+If 1,000 students poll every 2 seconds, the server processes 30,000 requests every minute just checking for updates, causing massive server load and battery drain.
+
+**The Socket.IO / WebSocket Solution:**
+WebSockets establish a persistent, **bi-directional full-duplex TCP connection**:
+$$\text{Client} \xleftrightarrow[\text{Instant 2-way message stream}]{\text{Persistent WebSocket Connection}} \text{Server}$$
+When Student A sends a message or offer, the server immediately pushes it to Student B in sub-10 milliseconds without any polling.
+
+```
+       Client A                               Server                              Client B
+          │                                      │                                   │
+          │ ─── 1. HTTP Upgrade Handshake ─────► │                                   │
+          │ ◄── 2. 101 Switching Protocols ────  │                                   │
+          │ ─── 3. JWT Token Authenticated ────► │ ◄── Authenticated & Connected ──  │
+          │                                      │                                   │
+          │ ─── 4. emit('send_message') ───────► │                                   │
+          │                                      │ ─── 5. to(room).emit('new_msg') ─►│
+```
+
+#### B. Socket.IO Handshake Authentication
+To prevent unauthorized connections, Socket.IO intercepts the initial HTTP connection handshake:
+```ts
+// server/src/socket.ts
+io.use((socket, next) => {
+  const token = socket.handshake.auth?.token;
+  if (!token) return next(new Error('Authentication required'));
+  try {
+    const user = verifyAccessToken(token);
+    socket.user = user; // Attach verified student payload
+    next();
+  } catch {
+    next(new Error('Invalid or expired token'));
+  }
+});
+```
+
+#### C. Room Isolation & Anti-Snoop Security
+A critical vulnerability in real-time chat is allowing users to listen to conversations they do not belong to. Collex enforces room authorization before a socket can join any channel:
+```ts
+socket.on('join_conversation', async ({ conversationId }) => {
+  const conversation = await Conversation.findById(conversationId);
+  const isParticipant =
+    conversation.buyer.toString() === socket.user.userId ||
+    conversation.seller.toString() === socket.user.userId;
+
+  if (!isParticipant) {
+    return socket.emit('socket_error', { message: 'Unauthorized access to conversation' });
+  }
+
+  socket.join(`conversation:${conversationId}`);
+});
+```
+
+#### D. The Real-Time Offer Negotiation System
+In campus marketplaces, students negotiate prices before meeting. The offer system supports:
+1. `OFFER` (Buyer sends proposed amount, e.g. ₹700).
+2. `ACCEPT` (Seller accepts $\rightarrow$ automatically transitions listing to `RESERVED` and spawns a `Transaction` in `AGREED` state).
+3. `REJECT` (Seller declines).
+4. `COUNTER` (Seller proposes counter-offer, e.g. ₹800).
+
+---
+
+## Part 6: Campus Meetup & Transaction Lifecycle (Phase 6)
+
+### 1. The Post-Offer Transaction State Machine
+
+Once an offer is accepted, the peer-to-peer handoff lifecycle begins:
+
+$$\boxed{\text{AGREED}} \longrightarrow \boxed{\text{MEETUP\_SCHEDULED}} \longrightarrow \boxed{\text{COMPLETED}} \;\Big(\text{or } \boxed{\text{CANCELLED}} \,/\, \boxed{\text{DISPUTED}}\Big)$$
+
+1. **`AGREED`**: Offer price settled; peers proceed to choose a meetup spot and time.
+2. **`MEETUP_SCHEDULED`**: Both buyer and seller agree on a designated public campus location.
+3. **`COMPLETED`**: Physical handoff occurred; **both** buyer and seller submit dual-confirmation in the app.
+4. **`CANCELLED`**: Either student cancels before handoff with an explicit reason.
+5. **`DISPUTED`**: A no-show or condition mismatch is flagged for moderator review.
+
+### 2. Hyperlocal Safe Campus Meetup Spots (Privacy First)
+- **Why exact GPS locations are NOT used:** Exposing exact student locations or hostel room numbers creates severe student safety and stalking risks.
+- **Approved Public Safe Spots:** Administrators configure well-lit, high-visibility campus locations:
+  1. *Central Library Entrance* (Under main security desk)
+  2. *Student Activity Centre (SAC)* (Cafeteria foyer)
+  3. *Main Campus Gate* (Visitor security booth)
+  4. *Hostel Quad / Warden Office* (Common room desk)
+
+### 3. Dual Confirmation Handoff & Mutual Reviews
+To prevent one party from falsely claiming an item was not delivered:
+- The transaction only transitions to `COMPLETED` when **both** `buyerConfirmedHandoff` and `sellerConfirmedHandoff` evaluate to `true`.
+- Once completed, the listing is automatically marked `SOLD`, and both peers are prompted for mutual reviews (rating 1-5, punctuality, and item accuracy), which feeds directly into the recipient's Collex Trust Score.
+
+---
+
+## Part 7: Collex Trust and Safety Layer (Phase 7)
+
+### 1. The Explainable Collex Trust Score (0 - 100)
+
+Unlike black-box reputation scores, Collex uses an **explainable, deterministic calculation** based on verified signals:
+
+$$\text{TrustScore} = \underbrace{\text{VerificationPoints}}_{10 - 50} + \underbrace{\text{CompletedDeals}}_{0 - 20} + \underbrace{\text{PeerRatings}}_{0 - 20} + \underbrace{\text{CampusLongevity}}_{3 - 10} - \underbrace{\text{Penalties}}_{0 - 50}$$
+
+#### Signal Breakdown:
+| Signal | Weight | Logic |
+| :--- | :--- | :--- |
+| **Verification** | Max 50 pts | `STUDENT_VERIFIED` (50 pts), `EMAIL_VERIFIED` (35 pts), `UNVERIFIED` (10 pts) |
+| **Completed Deals** | Max 20 pts | +4 points per clean physical handoff (capped at 5 deals) |
+| **Peer Ratings** | Max 20 pts | $\frac{\text{AverageRating}}{5.0} \times 20$ (Neutral baseline of 12 pts for new students) |
+| **Campus Longevity** | Max 10 pts | $>90\text{ days}$ (10 pts), $>30\text{ days}$ (7 pts), $\le 30\text{ days}$ (3 pts) |
+| **Cancellation Penalty** | Deductive | $-15\text{ pts}$ if cancellation rate exceeds 35% |
+| **Conduct Penalty** | Deductive | $-25\text{ pts}$ per confirmed moderation violation |
+
+#### Trust Tiers:
+* **`CAMPUS_CHAMPION`** ($\ge 90$): Trusted campus senior with stellar review track record.
+* **`TRUSTED_TRADER`** ($75 - 89$): Active student with multiple confirmed transactions.
+* **`VERIFIED_PEER`** ($50 - 74$): Verified college member in good standing.
+* **`NEW_STUDENT`** ($< 50$): Newly joined student.
+
+---
+
+### 2. Key Interview Questions & Answers (Phase 5, 6, & 7)
+
+#### Q1: How do you secure WebSockets against unauthorized cross-tenant room subscriptions?
+> **Answer:** Never trust client-supplied identifiers over WebSocket events. On connection, authenticate the socket using the JWT access token in the handshake. When a client emits `join_conversation`, the server queries the database to verify that the socket's authenticated user ID matches either the buyer or seller before calling `socket.join(room)`.
+
+#### Q2: Why is dual-confirmation required for in-person marketplace transactions?
+> **Answer:** In cash/peer-to-peer in-person transactions where no third-party courier exists, requiring independent confirmation from both parties prevents unilateral fraud (e.g. a buyer taking the item and refusing to confirm, or a seller claiming payment wasn't received). Only mutual agreement unlocks review submissions and status finalization.
+
+#### Q3: What is the principle of explainable trust scores versus opaque AI algorithms?
+> **Answer:** Opaque scores leave students confused and frustrated when their score drops without explanation. Explainable trust scores provide clear, deterministic visibility into *why* a score is what it is (e.g., +35 for college email verification, +16 for 4 completed handoffs, -8 for a high cancellation rate), creating positive behavioral incentives for honesty and punctuality across the campus community.
+
+---
+
+### 5. Commands Reference
 
 ```bash
 # Start local development servers:
-npm run dev:server    # Backend API on http://localhost:5000 (MongoDB Atlas Connected)
+npm run dev:server    # Backend API on http://localhost:5000 (MongoDB Atlas Connected + Socket.IO)
 npm run dev:client    # Frontend React App on http://localhost:5173
 
 # Run production build validation:
@@ -341,5 +477,6 @@ npm run build         # Validates tsc on server and vite build on client (zero e
 # Run zero-warning lint check:
 npm run lint          # Validates tsc on server and oxlint on client (zero errors)
 ```
+
 
 

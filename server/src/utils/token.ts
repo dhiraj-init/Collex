@@ -5,6 +5,7 @@ import { IUser, UserRole, VerificationStatus } from '../models/User';
 export interface TokenPayload {
   userId: string;
   email: string;
+  fullName: string;
   college: string;
   role: UserRole;
   verificationStatus: VerificationStatus;
@@ -22,6 +23,7 @@ export function generateAuthTokens(user: IUser): AuthTokens {
   const payload: TokenPayload = {
     userId: user._id.toString(),
     email: user.email,
+    fullName: user.fullName,
     college: user.college,
     role: user.role,
     verificationStatus: user.verificationStatus,

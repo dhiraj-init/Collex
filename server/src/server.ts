@@ -1,8 +1,10 @@
+import http from 'http';
 import { app } from './app';
 import { config, validateEnv } from './config/env';
 import { connectDB, disconnectDB } from './config/db';
 import { logger } from './utils/logger';
 import { seedInitialListingsIfEmpty } from './utils/seedListings';
+import { setupSocket } from './socket';
 
 async function bootstrap(): Promise<void> {
   try {
@@ -15,13 +17,17 @@ async function bootstrap(): Promise<void> {
     // 3. Seed initial campus listings if database is empty
     await seedInitialListingsIfEmpty();
 
-    // 3. Start Express HTTP Server
-    const server = app.listen(config.port, () => {
+    // 4. Create HTTP & Socket.IO Server
+    const httpServer = http.createServer(app);
+    setupSocket(httpServer);
+
+    const server = httpServer.listen(config.port, () => {
       logger.info(`=================================================`);
       logger.info(`🚀 Collex API server running on port ${config.port}`);
       logger.info(`🌐 Environment : ${config.nodeEnv}`);
       logger.info(`📡 API Base    : http://localhost:${config.port}${config.apiPrefix}`);
       logger.info(`🩺 Health Check: http://localhost:${config.port}${config.apiPrefix}/health`);
+      logger.info(`💬 Socket.IO   : Connected & Authenticated`);
       logger.info(`=================================================`);
     });
 
