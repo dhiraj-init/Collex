@@ -332,6 +332,26 @@ export const Navbar: React.FC = () => {
                       </Link>
 
                       <Link
+                        to="/wanted"
+                        onClick={() => setIsProfileMenuOpen(false)}
+                        className="flex items-center space-x-2.5 px-3 py-2 rounded-lg text-slate-300 hover:bg-slate-800 hover:text-white transition-colors"
+                      >
+                        <ShieldCheck className="w-4 h-4 text-slate-400" />
+                        <span>Wanted Board</span>
+                      </Link>
+
+                      {(authUser.role === 'COLLEGE_ADMIN' || authUser.role === 'SUPER_ADMIN') && (
+                        <Link
+                          to="/admin"
+                          onClick={() => setIsProfileMenuOpen(false)}
+                          className="flex items-center space-x-2.5 px-3 py-2 rounded-lg text-emerald-400 hover:bg-emerald-950/30 transition-colors"
+                        >
+                          <ShieldCheck className="w-4 h-4 text-emerald-400" />
+                          <span>Campus Admin Console</span>
+                        </Link>
+                      )}
+
+                      <Link
                         to="/saved"
                         onClick={() => setIsProfileMenuOpen(false)}
                         className="flex items-center space-x-2.5 px-3 py-2 rounded-lg text-slate-300 hover:bg-slate-800 hover:text-white transition-colors sm:hidden"

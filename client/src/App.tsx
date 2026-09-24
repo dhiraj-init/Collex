@@ -18,6 +18,8 @@ import { MessagesPage } from './pages/MessagesPage';
 import { ProfilePage } from './pages/ProfilePage';
 import { SavedItemsPage } from './pages/SavedItemsPage';
 import { MyListingsPage } from './pages/MyListingsPage';
+import { WantedBoardPage } from './pages/WantedBoardPage';
+import { CollegeAdminPage } from './pages/CollegeAdminPage';
 
 export const App: React.FC = () => {
   return (
@@ -38,6 +40,8 @@ export const App: React.FC = () => {
                 <Route path="/login" element={<LoginPage />} />
                 <Route path="/register" element={<RegisterPage />} />
                 <Route path="/saved" element={<SavedItemsPage />} />
+                <Route path="/wanted" element={<WantedBoardPage />} />
+                <Route path="/admin" element={<CollegeAdminPage />} />
 
                 {/* Protected Student Routes */}
                 <Route

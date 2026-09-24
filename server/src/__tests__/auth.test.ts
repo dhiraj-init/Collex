@@ -1,4 +1,4 @@
-import test, { describe, it, before, after } from 'node:test';
+import { describe, it, before, after } from 'node:test';
 import assert from 'node:assert';
 import request from 'supertest';
 import mongoose from 'mongoose';

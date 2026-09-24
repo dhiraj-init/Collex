@@ -12,7 +12,8 @@ import {
   CheckCircle2, 
   Check, 
   Eye,
-  Trash2
+  Trash2,
+  Repeat
 } from 'lucide-react';
 import { useMarketplace, apiListingToMockListing } from '../context/MarketplaceContext';
 import { useAuth } from '../context/AuthContext';
@@ -48,6 +49,12 @@ export const ListingDetailPage: React.FC = () => {
   const [liveListing, setLiveListing] = useState<MockListing | null>(null);
   const [apiRelated, setApiRelated] = useState<MockListing[]>([]);
   const [isLoadingLive, setIsLoadingLive] = useState(false);
+
+  // Barter State
+  const [isBarterModalOpen, setIsBarterModalOpen] = useState(false);
+  const [barterDescription, setBarterDescription] = useState('');
+  const [cashDirection, setCashDirection] = useState('I_PAY');
+  const [cashAmount, setCashAmount] = useState('');
 
   // Collex Shield state
   const [shieldResult, setShieldResult] = useState<ShieldResult | null>(null);
@@ -174,6 +181,31 @@ export const ListingDetailPage: React.FC = () => {
       setIsOfferModalOpen(false);
       navigate('/messages');
     }, 1200);
+  };
+
+  const handleProposeExchange = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!listing) return;
+    try {
+      const { exchangeService } = await import('../services/exchangeService');
+      
+      let finalCash = 0;
+      if (cashAmount) {
+        finalCash = cashDirection === 'I_PAY' ? Number(cashAmount) : -Number(cashAmount);
+      }
+
+      await exchangeService.proposeExchange({
+        targetListing: listing.id,
+        offeredItemDescription: barterDescription,
+        cashAdjustment: finalCash,
+        note: offerNote
+      });
+
+      setIsBarterModalOpen(false);
+      alert('Exchange proposal sent successfully!');
+    } catch (err: any) {
+      alert(err?.response?.data?.message || 'Failed to send proposal');
+    }
   };
 
   const handleStartChat = () => {
@@ -427,6 +459,14 @@ export const ListingDetailPage: React.FC = () => {
                     <span>Make a Campus Offer</span>
                   </button>
                 )}
+                <button
+                  type="button"
+                  onClick={() => setIsBarterModalOpen(true)}
+                  className="w-full flex items-center justify-center space-x-2 bg-indigo-900 hover:bg-indigo-800 text-indigo-100 border border-indigo-700 font-semibold text-xs sm:text-sm py-3 rounded-xl transition-all"
+                >
+                  <Repeat className="w-4 h-4 text-indigo-400" />
+                  <span>Propose Exchange / Barter</span>
+                </button>
               </div>
             )}
 
@@ -595,6 +635,81 @@ export const ListingDetailPage: React.FC = () => {
                 </div>
               </form>
             )}
+          </div>
+        </div>
+      )}
+      {/* Barter / Exchange Modal */}
+      {isBarterModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm">
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-sm p-6 shadow-2xl relative">
+            <button
+              onClick={() => setIsBarterModalOpen(false)}
+              className="absolute top-4 right-4 text-slate-500 hover:text-slate-300"
+            >
+              <Trash2 className="w-5 h-5" />
+            </button>
+            <h3 className="text-lg font-bold text-white mb-1 font-display">Propose Exchange</h3>
+            <p className="text-xs text-slate-400 mb-6">Offer an item to trade for {listing.title}</p>
+            
+            <form onSubmit={handleProposeExchange} className="space-y-4">
+              <div>
+                <label className="block text-xs font-semibold text-slate-300 mb-1.5">
+                  What are you offering?
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={barterDescription}
+                  onChange={(e) => setBarterDescription(e.target.value)}
+                  placeholder="e.g. My TI-84 Plus CE Calculator"
+                  className="w-full bg-slate-950 border border-slate-700 focus:border-indigo-500 rounded-xl px-4 py-2.5 text-sm text-white outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-300 mb-1.5">
+                  Cash Adjustment (₹) - Optional
+                </label>
+                <div className="flex gap-2">
+                  <select 
+                    value={cashDirection}
+                    onChange={(e) => setCashDirection(e.target.value)}
+                    className="w-1/3 bg-slate-950 border border-slate-700 focus:border-indigo-500 rounded-xl px-2 py-2.5 text-xs text-white outline-none"
+                  >
+                    <option value="I_PAY">I will pay extra</option>
+                    <option value="THEY_PAY">They pay extra</option>
+                  </select>
+                  <input
+                    type="number"
+                    min="0"
+                    value={cashAmount}
+                    onChange={(e) => setCashAmount(e.target.value)}
+                    placeholder="0"
+                    className="w-2/3 bg-slate-950 border border-slate-700 focus:border-indigo-500 rounded-xl px-4 py-2.5 text-sm text-white font-mono outline-none"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-300 mb-1.5">
+                  Note
+                </label>
+                <textarea
+                  rows={2}
+                  value={offerNote}
+                  onChange={(e) => setOfferNote(e.target.value)}
+                  placeholder="Any extra details..."
+                  className="w-full bg-slate-950 border border-slate-700 focus:border-indigo-500 rounded-xl p-3 text-xs text-slate-200 outline-none resize-none"
+                />
+              </div>
+
+              <button
+                type="submit"
+                className="w-full py-2.5 mt-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold shadow-sm"
+              >
+                Send Proposal
+              </button>
+            </form>
           </div>
         </div>
       )}
