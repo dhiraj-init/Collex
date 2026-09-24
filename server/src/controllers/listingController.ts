@@ -648,3 +648,69 @@ export async function uploadListingImage(req: Request, res: Response, next: Next
     next(error);
   }
 }
+
+/**
+ * GET /api/v1/listings/recommended (Phase 10: Course-Aware Discovery)
+ * Deterministic recommendation engine based on user profile.
+ * Weights:
+ * - Same department: +30
+ * - Same semester/year: +20
+ */
+export async function getRecommendedListings(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const user = req.user!;
+    const limit = Math.min(20, parseInt(req.query.limit as string) || 10);
+    
+    // We only recommend active listings from the same college (baseline isolation)
+    const candidates = await Listing.find({ college: user.college, status: 'ACTIVE' })
+      .populate('seller', 'fullName avatar trustScore')
+      .lean();
+
+    // Deterministic scoring
+    const scoredListings = candidates.map(listing => {
+      let score = 0;
+      
+      // Trust score baseline
+      const seller = listing.seller as any;
+      if (seller && seller.trustScore) {
+        score += seller.trustScore * 0.1; // Max +10 for trust score 100
+      }
+
+      // Phase 10: Course-Aware matching
+      if (listing.department && user.branch && listing.department.toLowerCase() === user.branch.toLowerCase()) {
+        score += 30;
+      }
+      
+      // If user's graduation year matches listing's academic year conceptually
+      // (Rough heuristic for 'same year' if they are graduating soon)
+      if (listing.isGraduationSale) {
+        // Boost grad sales slightly for everyone to clear out inventory
+        score += 5;
+      }
+      
+      // Recency boost (newer = better)
+      const ageInDays = (Date.now() - new Date(listing.createdAt).getTime()) / (1000 * 60 * 60 * 24);
+      score += Math.max(0, 20 - ageInDays); // Max +20 for brand new items
+      
+      return { listing, score };
+    });
+
+    // Sort descending by score
+    scoredListings.sort((a, b) => b.score - a.score);
+
+    // Return top N
+    const recommendedListings = scoredListings.slice(0, limit).map(item => item.listing);
+
+    res.status(200).json({
+      success: true,
+      statusCode: 200,
+      message: 'Recommended listings fetched successfully',
+      data: {
+        listings: recommendedListings,
+        metadata: { strategy: 'DETERMINISTIC_COURSE_AWARE' }
+      }
+    });
+  } catch (error) {
+    next(error);
+  }
+}

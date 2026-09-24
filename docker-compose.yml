@@ -1,0 +1,82 @@
+version: '3.8'
+
+services:
+  mongodb:
+    image: mongo:6.0
+    container_name: collex_mongodb
+    ports:
+      - "27017:27017"
+    volumes:
+      - collex_db_data:/data/db
+    environment:
+      - MONGO_INITDB_DATABASE=collex
+    networks:
+      - collex_net
+    healthcheck:
+      test: echo 'db.runCommand("ping").ok' | mongosh localhost:27017/test --quiet
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  ml-service:
+    build:
+      context: ./ml-service
+      dockerfile: Dockerfile
+    container_name: collex_ml_service
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./ml-service:/app
+    networks:
+      - collex_net
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  server:
+    build:
+      context: ./server
+      dockerfile: Dockerfile
+    container_name: collex_server
+    ports:
+      - "5000:5000"
+    environment:
+      - NODE_ENV=development
+      - PORT=5000
+      - MONGODB_URI=mongodb://mongodb:27017/collex
+      - JWT_SECRET=dev_jwt_secret_change_in_production
+      - CLIENT_URL=http://localhost:5173
+      - ML_SERVICE_URL=http://ml-service:8000
+      - CLOUDINARY_CLOUD_NAME=${CLOUDINARY_CLOUD_NAME}
+      - CLOUDINARY_API_KEY=${CLOUDINARY_API_KEY}
+      - CLOUDINARY_API_SECRET=${CLOUDINARY_API_SECRET}
+    depends_on:
+      mongodb:
+        condition: service_healthy
+      ml-service:
+        condition: service_healthy
+    networks:
+      - collex_net
+
+  client:
+    build:
+      context: ./client
+      dockerfile: Dockerfile
+    container_name: collex_client
+    ports:
+      - "5173:5173"
+    environment:
+      - VITE_API_URL=http://localhost:5000/api/v1
+    depends_on:
+      - server
+    networks:
+      - collex_net
+
+volumes:
+  collex_db_data:
+
+networks:
+  collex_net:
+    driver: bridge

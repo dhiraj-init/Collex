@@ -5,6 +5,7 @@ import { config } from './config/env';
 import { requestLogger } from './middlewares/requestLogger';
 import { notFoundHandler } from './middlewares/notFoundHandler';
 import { errorHandler } from './middlewares/errorHandler';
+import { apiLimiter } from './middlewares/rateLimiter';
 import apiRouter from './routes';
 import { sendSuccess } from './utils/apiResponse';
 
@@ -43,8 +44,8 @@ export function createApp(): Application {
     }, 'Welcome to Collex API');
   });
 
-  // 6. Mount Main API Router (/api/v1)
-  app.use(config.apiPrefix, apiRouter);
+  // 6. Mount Main API Router (/api/v1) with global rate limiter
+  app.use(config.apiPrefix, apiLimiter, apiRouter);
 
   // 7. 404 Catch-All Handler
   app.use(notFoundHandler);

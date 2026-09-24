@@ -12,6 +12,7 @@ import {
   getMyListings,
   getSavedListings,
   uploadListingImage,
+  getRecommendedListings,
 } from '../controllers/listingController';
 import { authenticate } from '../middlewares/authMiddleware';
 
@@ -21,6 +22,7 @@ const router = Router();
 router.get('/', getListings);
 router.get('/trending', getTrendingListings);
 router.get('/recent', getRecentlyListed);
+router.get('/recommended', authenticate, getRecommendedListings);
 
 // Authenticated personal collection routes (must be placed before /:id)
 router.get('/me/items', authenticate, getMyListings);

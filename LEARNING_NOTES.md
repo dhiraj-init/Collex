@@ -658,3 +658,22 @@ A: Specific weights are not published. Signals are evaluated simultaneously, so 
 
 **Q: How do you handle false positives in a safety system?**
 A: Design the system's language to be advisory not accusatory. Expose signals with explanations, not verdicts. Build a moderator feedback loop so false positives can be dismissed and create training data for future models. Surface false positive metrics in admin dashboards. Never allow the system to take automated punitive action (blocking) without human moderator review.
+
+---
+
+## Phase 10: Signature Features
+- **MongoDB `$in` Operator:** Used in Bundles to fetch multiple listings efficiently.
+- **Barter System:** Designed `ExchangeProposal` schema to encapsulate complex entity relationships (User -> User, target Listing, optional offered Listing).
+- **Deterministic Recommendations:** Scored listings based on weights (same department = +30, recency decay) to provide relevant course-aware discovery without needing a full ML model upfront.
+
+## Phase 11: Multi-Tenancy & Admin
+- **Logical Multi-Tenancy:** By adding a `college` field to every document and enforcing it at the Express query level, we maintain strict tenant isolation without the DevOps overhead of maintaining multiple database instances.
+- **Aggregation Pipelines:** Used MongoDB `$group`, `$match`, and `$sum` to compute real-time College Dashboard statistics efficiently.
+
+## Phase 12: Production Hardening
+- **Rate Limiting (express-rate-limit):** Stricter limits applied.
+- **Test Strategy (Supertest):** API routes tested natively. *Lesson learned:* In a real CI environment, it is better to use `mongodb-memory-server` to spin up ephemeral databases for testing rather than relying on a local daemon.
+
+## Phase 13: Deployment
+- **Docker Compose:** Configured a multi-container environment (Node.js backend, React frontend, FastAPI ML service, MongoDB) communicating via a private bridge network.
+- **Nginx in Docker:** Used `nginx:alpine` for serving the built React static files in production.

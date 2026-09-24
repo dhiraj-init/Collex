@@ -1,5 +1,6 @@
 import { Router, Request, Response, NextFunction } from 'express';
 import { authenticate } from '../middlewares/authMiddleware';
+import { mlLimiter } from '../middlewares/rateLimiter';
 import { AppError } from '../utils/appError';
 
 const router = Router();
@@ -50,6 +51,7 @@ async function proxyToML(
  */
 router.post(
   '/price/predict',
+  mlLimiter,
   authenticate,
   async (req: Request, res: Response, next: NextFunction) => {
     const { category, condition, listing_type, original_price, age_months, brand } = req.body as Record<string, unknown>;
@@ -76,6 +78,7 @@ router.post(
  */
 router.post(
   '/shield/check',
+  mlLimiter,
   authenticate,
   async (req: Request, res: Response, next: NextFunction) => {
     const {

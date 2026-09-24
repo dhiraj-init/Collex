@@ -7,6 +7,10 @@ import transactionRoutes from './transactionRoutes';
 import reviewRoutes from './reviewRoutes';
 import trustRoutes from './trustRoutes';
 import mlRoutes from './mlRoutes';
+import wantedRoutes from './wantedRoutes';
+import collegeRoutes from './collegeRoutes';
+import bundleRoutes from './bundleRoutes';
+import exchangeRoutes from './exchangeRoutes';
 
 const apiRouter = Router();
 
@@ -33,5 +37,17 @@ apiRouter.use('/trust', trustRoutes);
 
 // 8 & 9. ML Service Proxy (Price Intelligence + Collex Shield): /api/v1/ml
 apiRouter.use('/ml', mlRoutes);
+
+// 10. Wanted Board: /api/v1/wanted
+apiRouter.use('/wanted', wantedRoutes);
+
+// 11. Graduation Bundles & Starter Kits: /api/v1/bundles
+apiRouter.use('/bundles', bundleRoutes);
+
+// 12. Barter & Exchanges: /api/v1/exchanges
+apiRouter.use('/exchanges', exchangeRoutes);
+
+// 13. Colleges (Multi-Tenancy): /api/v1/colleges
+apiRouter.use('/colleges', collegeRoutes);
 
 export default apiRouter;

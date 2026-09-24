@@ -1,140 +1,110 @@
-# Collex 🎓
+# Collex — The Trusted Campus Marketplace
 
-> **Hyperlocal campus marketplace exclusively for verified college students.**  
-> Buy, sell, rent, exchange, and giveaway items securely within your university community.
+![Collex Cover Image](https://via.placeholder.com/1200x400?text=Collex+-+Hyperlocal+Campus+Marketplace)
 
----
+Collex is a premium, multi-tenant marketplace designed exclusively for university students. It solves the problem of graduating seniors discarding perfectly good items and incoming freshmen buying expensive new ones by providing a secure, college-isolated platform to buy, sell, rent, and barter.
 
-## ⚡ Technical Stack
+## 🚀 Features
 
-- **Frontend:** React 19, TypeScript, Vite, Tailwind CSS v4, Lucide Icons
-- **Backend:** Node.js, Express, TypeScript, Helmet, CORS
-- **Database:** MongoDB Atlas / Local with Mongoose ODM
-- **Realtime (Upcoming):** Socket.IO
-- **Media Storage (Upcoming):** Cloudinary
-- **Authentication (Upcoming):** JWT with campus email domain verification
-- **Machine Learning (Roadmap):** Python, FastAPI, scikit-learn
+- **Strict Multi-Tenancy:** Users are isolated to their specific campus. A student at Stanford cannot see listings from MIT.
+- **Role-Based Access Control:** Differentiated roles (`STUDENT`, `COLLEGE_ADMIN`, `SUPER_ADMIN`).
+- **Signature Campus Features:**
+  - **Graduation Mode:** Group multiple items into a "Leaving Campus Sale" bundle.
+  - **Barter System:** "I have X, I want Y" exchange proposals with cash adjustments.
+  - **Wanted Board:** Post specific requests for items you need.
+  - **Course-Aware Discovery:** Recommendations based on department and graduation year.
+- **Machine Learning Integration:**
+  - **Price Intelligence:** FastAPI Python service predicting fair market prices.
+  - **Collex Shield:** Risk-assessment engine warning buyers about anomalies.
+- **Real-Time Communication:** Secure Socket.IO chat rooms for negotiating offers.
 
----
+## 🏗️ Architecture
 
-## 📁 Repository Structure
-
-```text
-Collex/
-├── client/              # React 19 + TypeScript frontend application
-│   ├── src/
-│   │   ├── components/  # Reusable UI components
-│   │   ├── config/      # Typed environment variables
-│   │   ├── services/    # API client layer (apiClient.ts)
-│   │   └── types/       # Domain interfaces & API envelopes
-│   ├── .env.example     # Client environment variable template
-│   └── package.json
-│
-├── server/              # Express + TypeScript backend application
-│   ├── src/
-│   │   ├── config/      # Database (Mongoose) & Environment config
-│   │   ├── controllers/ # Route handlers (healthController.ts)
-│   │   ├── middlewares/ # Centralized error handling, request logging, 404
-│   │   ├── routes/      # API routers (/api/v1/health)
-│   │   └── utils/       # Custom AppError, Logger, API response envelope
-│   ├── .env.example     # Server environment variable template
-│   └── package.json
-│
-├── docs/
-│   └── ARCHITECTURE.md  # Detailed architectural specification & data models
-│
-├── LEARNING_NOTES.md    # Concepts, interview prep, and command reference
-├── .env.example         # Root monorepo environment template
-└── package.json         # Workspace scripts
+```mermaid
+graph TD
+    Client[React + Vite + Tailwind] -->|REST API & WebSockets| NodeGateway[Node.js + Express API]
+    NodeGateway -->|Mongoose| MongoDB[(MongoDB Atlas)]
+    NodeGateway -->|HTTP| MLService[Python FastAPI Service]
+    Client -->|Image Uploads| Cloudinary[Cloudinary CDN]
 ```
 
----
+## 🛠️ Technology Stack
 
-## 🚀 Getting Started
+| Domain | Technologies |
+|---|---|
+| **Frontend** | React 18, TypeScript, Tailwind CSS, Vite, Lucide Icons |
+| **Backend** | Node.js, Express, TypeScript, Socket.IO, JWT Auth |
+| **Database** | MongoDB (Mongoose), Cloudinary (Images) |
+| **ML Service** | Python 3.11, FastAPI, scikit-learn, pandas |
+| **Testing** | Node.js native test runner, Supertest |
+| **DevOps** | Docker, Docker Compose |
 
-### 1. Prerequisites
-- **Node.js**: v20 or higher (`node -v`)
-- **npm**: v10 or higher (`npm -v`)
-- **MongoDB**: Local MongoDB instance or MongoDB Atlas connection URI
+## 💻 Local Setup
 
-### 2. Environment Setup
-Copy the environment example files:
+### Prerequisites
+- Node.js (v20+)
+- Python (v3.11+)
+- Docker (optional, for running everything at once)
+- MongoDB instance (local or Atlas)
+
+### 1. Clone & Install
 ```bash
-# Server configuration
-cp server/.env.example server/.env
+git clone https://github.com/dhiraj-init/Collex.git
+cd Collex
 
-# Client configuration
-cp client/.env.example client/.env
+# Install all dependencies (Monorepo)
+npm install
+npm --prefix server install
+npm --prefix client install
+npm --prefix ml-service install -r requirements.txt
 ```
 
-Ensure your `server/.env` contains your MongoDB URI:
+### 2. Environment Variables
+Create a `.env` file in the `server` directory:
 ```env
 PORT=5000
 NODE_ENV=development
-CLIENT_URL=http://localhost:5173
 MONGODB_URI=mongodb://localhost:27017/collex
-API_PREFIX=/api/v1
+JWT_SECRET=your_super_secret_jwt_key
+JWT_EXPIRES_IN=7d
+CLIENT_URL=http://localhost:5173
+ML_SERVICE_URL=http://localhost:8000
+CLOUDINARY_CLOUD_NAME=your_cloud_name
+CLOUDINARY_API_KEY=your_api_key
+CLOUDINARY_API_SECRET=your_api_secret
 ```
 
 ### 3. Run Development Servers
-From the root directory:
-
 ```bash
-# Start backend API (runs on http://localhost:5000)
-npm run dev:server
+# Run the entire Node+React stack
+npm run dev
 
-# In a separate terminal, start frontend client (runs on http://localhost:5173)
-npm run dev:client
+# In a separate terminal, start the Python ML Service
+cd ml-service
+uvicorn main:app --reload --port 8000
 ```
 
-### 4. Build and Lint Verification
+### 4. Running with Docker Compose
+If you prefer running the entire stack via Docker:
 ```bash
-# Build both client and server
-npm run build
-
-# Lint both client and server
-npm run lint
+docker compose up -d
 ```
 
----
-
-## 🩺 System Health Check
-
-The backend exposes a structured health endpoint at:
-`GET http://localhost:5000/api/v1/health`
-
-Example response:
-```json
-{
-  "success": true,
-  "statusCode": 200,
-  "message": "All systems operational",
-  "data": {
-    "service": "collex-api",
-    "status": "healthy",
-    "version": "0.1.0",
-    "environment": "development",
-    "uptimeSeconds": 42,
-    "database": {
-      "connected": true,
-      "state": "connected",
-      "code": 1
-    },
-    "system": {
-      "nodeVersion": "v22.23.1",
-      "platform": "win32",
-      "memoryUsageMB": {
-        "rss": 76.02,
-        "heapUsed": 18.47,
-        "heapTotal": 36.19
-      }
-    }
-  }
-}
+## 🧪 Testing
+```bash
+# Run backend API test suite
+npm --prefix server run test
 ```
+*Note: A running MongoDB connection is required to run the test suite successfully.*
 
----
+## 📚 Documentation
+- [Security Architecture](./docs/SECURITY.md)
+- [Multi-Tenancy Setup](./docs/MULTI_TENANCY.md)
+- [Price ML Model](./docs/PRICE_MODEL.md)
+- [Collex Shield](./docs/COLLEX_SHIELD.md)
+- [Interview Guide](./docs/INTERVIEW_GUIDE.md)
 
-## 📚 Documentation & Learning
-- [System Architecture & 10 Data Model Proposals](file:///c:/Users/Dhiraj%20Behera/Desktop/Collex/docs/ARCHITECTURE.md)
-- [Phase 0 Learning Notes & Interview Preparation](file:///c:/Users/Dhiraj%20Behera/Desktop/Collex/LEARNING_NOTES.md)
+## 🔮 Future Roadmap
+1. Migrate from `bcrypt` to `Argon2` for enhanced password security.
+2. Implement Redis for caching heavily accessed public campus listings.
+3. Replace deterministic recommendations with a collaborative filtering ML model.

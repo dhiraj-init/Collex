@@ -41,6 +41,30 @@ export function sendSuccess<T>(
 }
 
 /**
+ * Sends a paginated list response with pagination metadata
+ */
+export function sendPaginated<T>(
+  res: Response,
+  items: T[],
+  total: number,
+  page: number,
+  limit: number,
+  message = 'Request successful'
+): Response {
+  const totalPages = Math.ceil(total / limit);
+  return sendSuccess(res, items, message, 200, {
+    pagination: {
+      total,
+      page,
+      limit,
+      totalPages,
+      hasNext: page < totalPages,
+      hasPrev: page > 1,
+    },
+  });
+}
+
+/**
  * Sends a standardized error JSON response
  */
 export function sendError(

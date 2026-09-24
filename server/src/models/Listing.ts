@@ -31,6 +31,16 @@ export interface IListing extends Document {
   purchaseAge?: string;
   images: string[];
   tags: string[];
+  // Phase 10: Barter & Exchange
+  barterLookingFor?: string;
+  // Phase 10: Course-Aware Discovery
+  department?: string;
+  course?: string;
+  semester?: number;
+  academicYear?: number;
+  // Phase 10: Graduation Mode & Bundles
+  isGraduationSale?: boolean;
+  bundleId?: Types.ObjectId;
   status: ListingStatus;
   viewsCount: number;
   savesCount: number;
@@ -140,6 +150,43 @@ const listingSchema = new Schema<IListing>(
     tags: {
       type: [String],
       default: [],
+    },
+    // Phase 10: Barter & Exchange
+    barterLookingFor: {
+      type: String,
+      trim: true,
+      maxlength: [200, 'Barter description cannot exceed 200 characters'],
+    },
+    // Phase 10: Course-Aware Discovery
+    department: {
+      type: String,
+      trim: true,
+      index: true,
+    },
+    course: {
+      type: String,
+      trim: true,
+    },
+    semester: {
+      type: Number,
+      min: 1,
+      max: 12,
+    },
+    academicYear: {
+      type: Number,
+      min: 1,
+      max: 6,
+    },
+    // Phase 10: Graduation Mode & Bundles
+    isGraduationSale: {
+      type: Boolean,
+      default: false,
+      index: true,
+    },
+    bundleId: {
+      type: Schema.Types.ObjectId,
+      ref: 'Bundle',
+      index: true,
     },
     status: {
       type: String,
