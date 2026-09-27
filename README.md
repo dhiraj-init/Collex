@@ -79,13 +79,15 @@ cd ..
 ```
 
 ### 2. Environment Variables
-Create a `.env` file in the `server` directory. Use the provided MongoDB Atlas string for immediate database access:
+Create a `.env` file in the `server` directory (refer to `server/.env.example`):
 ```env
 PORT=5000
 NODE_ENV=development
-MONGODB_URI=mongodb+srv://dhirajtech02_db_user:FoHiRQUG9EbnstGR@cluster0.w9zbmgk.mongodb.net/?appName=Cluster0
-JWT_SECRET=super_secret_jwt_key
-JWT_EXPIRES_IN=7d
+MONGODB_URI=mongodb://localhost:27017/collex # Or your MongoDB Atlas connection string: mongodb+srv://<username>:<password>@cluster0.mongodb.net/collex
+JWT_ACCESS_SECRET=your_jwt_access_secret_here
+JWT_REFRESH_SECRET=your_jwt_refresh_secret_here
+JWT_ACCESS_EXPIRES_IN=15m
+JWT_REFRESH_EXPIRES_IN=7d
 CLIENT_URL=http://localhost:5173
 ML_SERVICE_URL=http://localhost:8000
 ```
