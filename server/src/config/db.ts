@@ -37,42 +37,41 @@ export function getDbStatus(): DbStatus {
   };
 }
 
+let retryTimeout: NodeJS.Timeout | null = null;
+
 /**
- * Initializes MongoDB connection via Mongoose
+ * Initializes MongoDB connection via Mongoose with auto-retry
  */
 export async function connectDB(): Promise<void> {
   const uri = config.mongoUri;
 
-  // Listeners for Mongoose connection events
-  mongoose.connection.on('connected', () => {
-    logger.info(`MongoDB connected successfully to ${mongoose.connection.host || 'cluster'}`);
-  });
+  if (uri.startsWith('mongodb+srv')) {
+    try {
+      dns.setServers(['8.8.8.8', '1.1.1.1']);
+    } catch {
+      // Fallback to system DNS
+    }
+  }
 
-  mongoose.connection.on('error', (err) => {
-    logger.error('MongoDB connection error:', err);
-  });
-
-  mongoose.connection.on('disconnected', () => {
-    logger.warn('MongoDB connection disconnected');
-  });
+  // Skip if already connected or connecting
+  if (mongoose.connection.readyState === 1 || mongoose.connection.readyState === 2) {
+    return;
+  }
 
   try {
-    if (uri.startsWith('mongodb+srv')) {
-      try {
-        dns.setServers(['8.8.8.8', '1.1.1.1']);
-      } catch {
-        // Fallback to system DNS
-      }
-    }
     logger.info(`Attempting MongoDB connection to [${uri.replace(/\/\/.*@/, '//<redacted>@')}]...`);
     await mongoose.connect(uri, {
       serverSelectionTimeoutMS: 5000,
     });
+    logger.info('MongoDB connection established successfully.');
   } catch (error) {
     const errorMsg = error instanceof Error ? error.message : String(error);
-    logger.warn('MongoDB initial connection failed. The server will remain active in degraded state.', errorMsg);
-    if (errorMsg.includes('whitelist') || errorMsg.includes('IP')) {
-      logger.error('👉 TIP: Please whitelist your current IP address in MongoDB Atlas > Network Access (or allow 0.0.0.0/0).');
+    logger.warn('MongoDB connection failed. Retrying in 5 seconds...', errorMsg);
+    if (!retryTimeout) {
+      retryTimeout = setTimeout(() => {
+        retryTimeout = null;
+        connectDB();
+      }, 5000);
     }
   }
 }
