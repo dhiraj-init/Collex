@@ -57,15 +57,23 @@ export async function connectDB(): Promise<void> {
   });
 
   try {
+    if (uri.startsWith('mongodb+srv')) {
+      try {
+        dns.setServers(['8.8.8.8', '1.1.1.1']);
+      } catch {
+        // Fallback to system DNS
+      }
+    }
     logger.info(`Attempting MongoDB connection to [${uri.replace(/\/\/.*@/, '//<redacted>@')}]...`);
     await mongoose.connect(uri, {
       serverSelectionTimeoutMS: 5000,
     });
   } catch (error) {
-    logger.warn(
-      'MongoDB initial connection failed. The server will remain active in degraded state.',
-      error instanceof Error ? error.message : error
-    );
+    const errorMsg = error instanceof Error ? error.message : String(error);
+    logger.warn('MongoDB initial connection failed. The server will remain active in degraded state.', errorMsg);
+    if (errorMsg.includes('whitelist') || errorMsg.includes('IP')) {
+      logger.error('👉 TIP: Please whitelist your current IP address in MongoDB Atlas > Network Access (or allow 0.0.0.0/0).');
+    }
   }
 }
 

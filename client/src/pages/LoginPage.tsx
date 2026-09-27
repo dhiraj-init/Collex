@@ -127,13 +127,53 @@ export const LoginPage: React.FC = () => {
           </form>
 
           {/* Quick Demo Credentials */}
-          <div className="p-3 rounded-xl bg-slate-950/70 border border-slate-800 text-[11px] text-slate-400 space-y-1">
-            <div className="flex items-center space-x-1.5 text-slate-300 font-medium">
-              <ShieldCheck className="w-4 h-4 text-emerald-400" />
-              <span>Real MongoDB Atlas Authentication Active</span>
+          <div className="p-3.5 rounded-xl bg-slate-950/80 border border-slate-800 text-[11px] text-slate-400 space-y-2.5">
+            <div className="flex items-center justify-between text-slate-300 font-medium">
+              <div className="flex items-center space-x-1.5">
+                <ShieldCheck className="w-4 h-4 text-emerald-400" />
+                <span className="text-xs font-semibold text-slate-200">Demo Accounts Available</span>
+              </div>
+              <span className="text-[10px] bg-emerald-950 text-emerald-400 px-2 py-0.5 rounded-full border border-emerald-800/60 font-mono">
+                Password@123
+              </span>
             </div>
-            <p className="text-slate-500 text-[10px]">
-              Don't have an account yet? Register below to create your student record in the database.
+
+            <div className="grid grid-cols-2 gap-2 pt-1">
+              <button
+                type="button"
+                onClick={() => {
+                  setEmail('aryan.sharma@iitb.ac.in');
+                  setPassword('Password@123');
+                }}
+                className="text-left px-2.5 py-2 rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-700/80 hover:border-emerald-500 transition-all group"
+              >
+                <div className="text-[11px] font-medium text-emerald-400 group-hover:text-emerald-300">
+                  Student Account
+                </div>
+                <div className="text-[10px] text-slate-400 truncate">
+                  aryan.sharma@iitb.ac.in
+                </div>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setEmail('admin@iitb.ac.in');
+                  setPassword('Password@123');
+                }}
+                className="text-left px-2.5 py-2 rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-700/80 hover:border-indigo-500 transition-all group"
+              >
+                <div className="text-[11px] font-medium text-indigo-400 group-hover:text-indigo-300">
+                  College Admin
+                </div>
+                <div className="text-[10px] text-slate-400 truncate">
+                  admin@iitb.ac.in
+                </div>
+              </button>
+            </div>
+
+            <p className="text-[10px] text-slate-500 text-center">
+              💡 Tip: Click either card above to auto-fill, or register any <span className="text-slate-300">@gmail.com</span> email.
             </p>
           </div>
 

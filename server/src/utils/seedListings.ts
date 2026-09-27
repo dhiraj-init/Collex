@@ -3,14 +3,7 @@ import { User } from '../models/User';
 
 export async function seedInitialListingsIfEmpty() {
   try {
-    const count = await Listing.countDocuments();
-    if (count > 0) {
-      return; // Already populated
-    }
-
-    console.log('[Seed] Database has 0 listings. Seeding initial campus listings...');
-
-    // Find or create a demo seller student
+    // 1. Ensure demo users exist for testing/eval
     let demoSeller = await User.findOne({ email: 'aryan.sharma@iitb.ac.in' });
     if (!demoSeller) {
       demoSeller = await User.create({
@@ -25,6 +18,40 @@ export async function seedInitialListingsIfEmpty() {
         role: 'STUDENT',
         verificationStatus: 'STUDENT_VERIFIED',
         trustScore: 98,
+      });
+    }
+
+    let demoGmailUser = await User.findOne({ email: 'demo@gmail.com' });
+    if (!demoGmailUser) {
+      demoGmailUser = await User.create({
+        fullName: 'Demo Student',
+        email: 'demo@gmail.com',
+        password: 'Password@123',
+        college: 'IIT Bombay',
+        collegeDomain: 'gmail.com',
+        branch: 'Electronics & Communication',
+        graduationYear: '2026',
+        avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=200&q=80',
+        role: 'STUDENT',
+        verificationStatus: 'STUDENT_VERIFIED',
+        trustScore: 92,
+      });
+    }
+
+    let adminUser = await User.findOne({ email: 'admin@iitb.ac.in' });
+    if (!adminUser) {
+      adminUser = await User.create({
+        fullName: 'Campus Admin',
+        email: 'admin@iitb.ac.in',
+        password: 'Password@123',
+        college: 'IIT Bombay',
+        collegeDomain: 'iitb.ac.in',
+        branch: 'Dean Office',
+        graduationYear: 'Faculty',
+        avatar: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?auto=format&fit=crop&w=200&q=80',
+        role: 'COLLEGE_ADMIN',
+        verificationStatus: 'STUDENT_VERIFIED',
+        trustScore: 100,
       });
     }
 
@@ -44,6 +71,14 @@ export async function seedInitialListingsIfEmpty() {
         trustScore: 94,
       });
     }
+
+    // 2. Check if marketplace listings already exist
+    const count = await Listing.countDocuments();
+    if (count > 0) {
+      return; // Already populated
+    }
+
+    console.log('[Seed] Database has 0 listings. Seeding initial campus listings...');
 
     const sampleListings = [
       {
